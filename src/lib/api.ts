@@ -1,9 +1,21 @@
+export class NetworkError extends Error {
+  constructor() {
+    super("Network unavailable");
+    this.name = "NetworkError";
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    credentials: "include",
-  });
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      credentials: "include",
+    });
+  } catch {
+    throw new NetworkError();
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);

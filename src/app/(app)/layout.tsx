@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { StoreProvider } from "@/lib/store";
 import BottomNav from "@/components/BottomNav";
+import SyncStatusBar from "@/components/SyncStatusBar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, ready } = useAuth();
@@ -18,6 +19,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <StoreProvider>
+      <SyncStatusBar />
       <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain">{children}</main>
       <BottomNav />
     </StoreProvider>

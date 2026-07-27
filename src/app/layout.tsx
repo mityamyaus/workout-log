@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme";
 import { AuthProvider } from "@/lib/auth";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
   title: "Дневник тренировок",
@@ -38,7 +39,10 @@ export default function RootLayout({
     <html lang="ru" className="h-dvh antialiased overflow-hidden" suppressHydrationWarning>
       <body className="h-dvh flex flex-col overflow-hidden">
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <ServiceWorkerRegister />
+            {children}
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

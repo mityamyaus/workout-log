@@ -6,15 +6,25 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { DraftExercise, PlannedWorkout, Program, ProgramExercise, WorkoutSession } from "./types";
 import { DEFAULT_PROGRAM_COLOR } from "./colors";
 import type { Exercise, MuscleGroup, Equipment } from "./exercises";
-import { api } from "./api";
+import { api, NetworkError } from "./api";
 import { useAuth } from "./auth";
+import { loadQueue, saveQueue, newOpId, newTempId, isTempId, resolveId, type QueueOp } from "./offlineQueue";
 
 const DRAFT_KEY = "wa_draft_v1";
+const CACHE_KEY = "wa_data_cache_v1";
+
+interface Cache {
+  sessions: WorkoutSession[];
+  programs: Program[];
+  plans: PlannedWorkout[];
+  customExercises: Exercise[];
+}
 
 interface DraftSession {
   title: string;
@@ -37,6 +47,8 @@ interface Store {
   plans: PlannedWorkout[];
   customExercises: Exercise[];
   ready: boolean;
+  online: boolean;
+  pendingCount: number;
   draft: DraftSession | null;
   startDraft: (options?: StartDraftOptions) => void;
   startProgram: (programId: string) => void;
@@ -61,6 +73,14 @@ function todayStr(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
+function loadCache(): Cache {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { sessions: [], programs: [], plans: [], customExercises: [] };
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
@@ -69,12 +89,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
   const [draft, setDraft] = useState<DraftSession | null>(null);
   const [ready, setReady] = useState(false);
+  const [online, setOnline] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
+  const flushing = useRef(false);
+
+  // Keep latest state in refs so the queue flush (which runs outside React's
+  // render cycle) always mutates from current values, not a stale closure.
+  const stateRef = useRef({ sessions, programs, plans, customExercises });
+  stateRef.current = { sessions, programs, plans, customExercises };
 
   useEffect(() => {
     try {
       const d = localStorage.getItem(DRAFT_KEY);
       if (d) setDraft(JSON.parse(d));
     } catch {}
+    setOnline(navigator.onLine);
   }, []);
 
   useEffect(() => {
@@ -82,6 +111,144 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     else localStorage.removeItem(DRAFT_KEY);
   }, [draft]);
 
+  const persistCache = useCallback((patch: Partial<Cache>) => {
+    const current = loadCache();
+    const next = { ...current, ...patch };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+  }, []);
+
+  const updatePendingCount = useCallback(() => {
+    setPendingCount(loadQueue().length);
+  }, []);
+
+  const runOp = useCallback(async (kind: QueueOp["kind"], payload: Record<string, unknown>): Promise<unknown> => {
+    switch (kind) {
+      case "createWorkout": {
+        const { tempId: _tempId, ...body } = payload;
+        return api.post("/api/workouts", body);
+      }
+      case "deleteWorkout":
+        return api.delete(`/api/workouts/${payload.id}`);
+      case "saveProgram": {
+        const { tempId: _tempId, ...body } = payload;
+        return api.post("/api/programs", body);
+      }
+      case "deleteProgram":
+        return api.delete(`/api/programs/${payload.id}`);
+      case "addPlan": {
+        const { tempId: _tempId, ...body } = payload;
+        return api.post("/api/plans", body);
+      }
+      case "removePlan":
+        return api.delete(`/api/plans/${payload.id}`);
+      case "addCustomExercise": {
+        const { tempId: _tempId, ...body } = payload;
+        return api.post("/api/custom-exercises", body);
+      }
+      case "updateProfile":
+        return api.patch("/api/profile", payload);
+      default:
+        return undefined;
+    }
+  }, []);
+
+  const flushQueue = useCallback(async () => {
+    if (flushing.current) return;
+    flushing.current = true;
+    try {
+      const idMap: Record<string, string> = {};
+      let queue = loadQueue();
+      while (queue.length > 0) {
+        const op = queue[0];
+        const resolvedPayload: Record<string, unknown> = { ...op.payload };
+        for (const key of ["programId", "id"]) {
+          if (typeof resolvedPayload[key] === "string") {
+            resolvedPayload[key] = resolveId(resolvedPayload[key] as string, idMap);
+          }
+        }
+        try {
+          const result = await runOp(op.kind, resolvedPayload);
+          if (result && typeof result === "object" && "id" in result && typeof op.payload.tempId === "string") {
+            const realId = (result as { id: string }).id;
+            idMap[op.payload.tempId] = realId;
+            reconcileTempId(op.kind, op.payload.tempId, result as never);
+          }
+          queue = queue.slice(1);
+          saveQueue(queue);
+          updatePendingCount();
+        } catch (err) {
+          if (err instanceof NetworkError) {
+            setOnline(false);
+            break;
+          }
+          // Non-network failure (validation/404/etc): drop the op, it can't succeed on retry.
+          queue = queue.slice(1);
+          saveQueue(queue);
+          updatePendingCount();
+        }
+      }
+    } finally {
+      flushing.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runOp, updatePendingCount]);
+
+  const reconcileTempId = useCallback((kind: QueueOp["kind"], tempId: string, result: WorkoutSession | Program | PlannedWorkout | Exercise) => {
+    if (kind === "createWorkout") {
+      setSessions((prev) => {
+        const next = prev.map((s) => (s.id === tempId ? (result as WorkoutSession) : s));
+        persistCache({ sessions: next });
+        return next;
+      });
+    } else if (kind === "saveProgram") {
+      setPrograms((prev) => {
+        const next = prev.map((p) => (p.id === tempId ? (result as Program) : p));
+        persistCache({ programs: next });
+        return next;
+      });
+      setPlans((prev) => {
+        const next = prev.map((pl) => (pl.programId === tempId ? { ...pl, programId: (result as Program).id } : pl));
+        persistCache({ plans: next });
+        return next;
+      });
+    } else if (kind === "addPlan") {
+      setPlans((prev) => {
+        const next = prev.map((p) => (p.id === tempId ? (result as PlannedWorkout) : p));
+        persistCache({ plans: next });
+        return next;
+      });
+    } else if (kind === "addCustomExercise") {
+      setCustomExercises((prev) => {
+        const next = prev.map((e) => (e.id === tempId ? (result as Exercise) : e));
+        persistCache({ customExercises: next });
+        return next;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistCache]);
+
+  const enqueue = useCallback(
+    (kind: QueueOp["kind"], payload: Record<string, unknown>) => {
+      const queue = loadQueue();
+      queue.push({ id: newOpId(), kind, payload, createdAt: Date.now() });
+      saveQueue(queue);
+      updatePendingCount();
+    },
+    [updatePendingCount]
+  );
+
+  /** If `id` is a still-unsynced temp id, remove its pending create op instead of queueing a delete. Returns true if cancelled. */
+  const cancelPendingCreate = useCallback((tempId: string, createKind: QueueOp["kind"]): boolean => {
+    const queue = loadQueue();
+    const idx = queue.findIndex((op) => op.kind === createKind && op.payload.tempId === tempId);
+    if (idx === -1) return false;
+    queue.splice(idx, 1);
+    saveQueue(queue);
+    updatePendingCount();
+    return true;
+  }, [updatePendingCount]);
+
+  // Bootstrap: load local cache immediately (works offline), then reconcile with server.
   useEffect(() => {
     if (!user) {
       setSessions([]);
@@ -91,19 +258,56 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setReady(true);
       return;
     }
-    setReady(false);
+    const cache = loadCache();
+    setSessions(cache.sessions);
+    setPrograms(cache.programs);
+    setPlans(cache.plans);
+    setCustomExercises(cache.customExercises);
+    setReady(true);
+
     api
       .get<{ sessions: WorkoutSession[]; programs: Program[]; plans: PlannedWorkout[]; customExercises: Exercise[] }>(
         "/api/bootstrap"
       )
       .then(({ sessions: s, programs: p, plans: pl, customExercises: ce }) => {
-        setSessions(s);
-        setPrograms(p);
-        setPlans(pl);
-        setCustomExercises(ce);
+        setOnline(true);
+        const pendingIds = new Set(loadQueue().map((op) => op.payload.tempId).filter(Boolean));
+        const keepPending = <T extends { id: string }>(local: T[], server: T[]) => [
+          ...server,
+          ...local.filter((item) => isTempId(item.id) && pendingIds.has(item.id)),
+        ];
+        const mergedSessions = keepPending(stateRef.current.sessions, s);
+        const mergedPrograms = keepPending(stateRef.current.programs, p);
+        const mergedPlans = keepPending(stateRef.current.plans, pl);
+        const mergedCustom = keepPending(stateRef.current.customExercises, ce);
+        setSessions(mergedSessions);
+        setPrograms(mergedPrograms);
+        setPlans(mergedPlans);
+        setCustomExercises(mergedCustom);
+        persistCache({ sessions: mergedSessions, programs: mergedPrograms, plans: mergedPlans, customExercises: mergedCustom });
+        flushQueue();
       })
-      .finally(() => setReady(true));
+      .catch((err) => {
+        if (err instanceof NetworkError) setOnline(false);
+      });
+
+    updatePendingCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setOnline(true);
+      flushQueue();
+    };
+    const handleOffline = () => setOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [flushQueue]);
 
   const startDraft = useCallback((options?: StartDraftOptions) => {
     setDraft({
@@ -214,7 +418,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setDraft(null);
       return;
     }
-    const session = await api.post<WorkoutSession>("/api/workouts", {
+    const tempId = newTempId("s");
+    const optimistic: WorkoutSession = {
+      id: tempId,
       date: todayStr(),
       title: draft.title || "Тренировка",
       startedAt: draft.startedAt,
@@ -222,49 +428,228 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       exercises,
       programId: draft.programId,
       color: draft.color,
+    };
+    setSessions((prev) => {
+      const next = [optimistic, ...prev];
+      persistCache({ sessions: next });
+      return next;
     });
-    setSessions((prev) => [session, ...prev]);
     setDraft(null);
-  }, [draft]);
 
-  const deleteSession = useCallback(async (id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    await api.delete(`/api/workouts/${id}`);
-  }, []);
+    try {
+      const session = await api.post<WorkoutSession>("/api/workouts", {
+        date: optimistic.date,
+        title: optimistic.title,
+        startedAt: optimistic.startedAt,
+        finishedAt: optimistic.finishedAt,
+        exercises: optimistic.exercises,
+        programId: optimistic.programId,
+        color: optimistic.color,
+      });
+      setSessions((prev) => {
+        const next = prev.map((s) => (s.id === tempId ? session : s));
+        persistCache({ sessions: next });
+        return next;
+      });
+    } catch (err) {
+      if (!(err instanceof NetworkError)) throw err;
+      setOnline(false);
+      enqueue("createWorkout", {
+        tempId,
+        date: optimistic.date,
+        title: optimistic.title,
+        startedAt: optimistic.startedAt,
+        finishedAt: optimistic.finishedAt,
+        exercises: optimistic.exercises,
+        programId: optimistic.programId,
+        color: optimistic.color,
+      });
+    }
+  }, [draft, persistCache, enqueue]);
+
+  const deleteSession = useCallback(
+    async (id: string) => {
+      setSessions((prev) => {
+        const next = prev.filter((s) => s.id !== id);
+        persistCache({ sessions: next });
+        return next;
+      });
+      if (isTempId(id)) {
+        cancelPendingCreate(id, "createWorkout");
+        return;
+      }
+      try {
+        await api.delete(`/api/workouts/${id}`);
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("deleteWorkout", { id });
+      }
+    },
+    [persistCache, enqueue, cancelPendingCreate]
+  );
 
   const saveProgram = useCallback(
     async (program: { id?: string; name: string; color: string; exercises: ProgramExercise[] }) => {
-      const saved = await api.post<Program>("/api/programs", program);
-      setPrograms((prev) =>
-        program.id ? prev.map((p) => (p.id === saved.id ? saved : p)) : [...prev, saved]
-      );
+      if (program.id && isTempId(program.id)) {
+        // Still-unsynced program: patch the pending create op in place.
+        const queue = loadQueue();
+        const idx = queue.findIndex((op) => op.kind === "saveProgram" && op.payload.tempId === program.id);
+        if (idx !== -1) {
+          queue[idx].payload = { ...queue[idx].payload, name: program.name, color: program.color, exercises: program.exercises };
+          saveQueue(queue);
+        }
+        setPrograms((prev) => {
+          const next = prev.map((p) => (p.id === program.id ? { ...p, ...program, id: program.id! } : p));
+          persistCache({ programs: next });
+          return next;
+        });
+        return;
+      }
+
+      if (program.id) {
+        setPrograms((prev) => {
+          const next = prev.map((p) => (p.id === program.id ? { ...p, ...program, id: program.id! } : p));
+          persistCache({ programs: next });
+          return next;
+        });
+        try {
+          const saved = await api.post<Program>("/api/programs", program);
+          setPrograms((prev) => {
+            const next = prev.map((p) => (p.id === saved.id ? saved : p));
+            persistCache({ programs: next });
+            return next;
+          });
+        } catch (err) {
+          if (!(err instanceof NetworkError)) throw err;
+          setOnline(false);
+          enqueue("saveProgram", { ...program });
+        }
+        return;
+      }
+
+      const tempId = newTempId("p");
+      const optimistic: Program = { id: tempId, name: program.name, color: program.color, exercises: program.exercises, createdAt: Date.now() };
+      setPrograms((prev) => {
+        const next = [...prev, optimistic];
+        persistCache({ programs: next });
+        return next;
+      });
+      try {
+        const saved = await api.post<Program>("/api/programs", program);
+        setPrograms((prev) => {
+          const next = prev.map((p) => (p.id === tempId ? saved : p));
+          persistCache({ programs: next });
+          return next;
+        });
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("saveProgram", { tempId, name: program.name, color: program.color, exercises: program.exercises });
+      }
     },
-    []
+    [persistCache, enqueue]
   );
 
-  const deleteProgram = useCallback(async (id: string) => {
-    setPrograms((prev) => prev.filter((p) => p.id !== id));
-    setPlans((prev) => prev.filter((p) => p.programId !== id));
-    await api.delete(`/api/programs/${id}`);
-  }, []);
+  const deleteProgram = useCallback(
+    async (id: string) => {
+      setPrograms((prev) => {
+        const next = prev.filter((p) => p.id !== id);
+        persistCache({ programs: next });
+        return next;
+      });
+      setPlans((prev) => {
+        const next = prev.filter((p) => p.programId !== id);
+        persistCache({ plans: next });
+        return next;
+      });
+      if (isTempId(id)) {
+        cancelPendingCreate(id, "saveProgram");
+        return;
+      }
+      try {
+        await api.delete(`/api/programs/${id}`);
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("deleteProgram", { id });
+      }
+    },
+    [persistCache, enqueue, cancelPendingCreate]
+  );
 
-  const addPlan = useCallback(async (date: string, programId: string | null, title: string, color: string) => {
-    const plan = await api.post<PlannedWorkout>("/api/plans", { date, programId, title, color });
-    setPlans((prev) => [...prev, plan]);
-  }, []);
+  const addPlan = useCallback(
+    async (date: string, programId: string | null, title: string, color: string) => {
+      const tempId = newTempId("pl");
+      const optimistic: PlannedWorkout = { id: tempId, date, programId, title, color };
+      setPlans((prev) => {
+        const next = [...prev, optimistic];
+        persistCache({ plans: next });
+        return next;
+      });
+      try {
+        const plan = await api.post<PlannedWorkout>("/api/plans", { date, programId, title, color });
+        setPlans((prev) => {
+          const next = prev.map((p) => (p.id === tempId ? plan : p));
+          persistCache({ plans: next });
+          return next;
+        });
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("addPlan", { tempId, date, programId, title, color });
+      }
+    },
+    [persistCache, enqueue]
+  );
 
-  const removePlan = useCallback(async (id: string) => {
-    setPlans((prev) => prev.filter((p) => p.id !== id));
-    await api.delete(`/api/plans/${id}`);
-  }, []);
+  const removePlan = useCallback(
+    async (id: string) => {
+      setPlans((prev) => {
+        const next = prev.filter((p) => p.id !== id);
+        persistCache({ plans: next });
+        return next;
+      });
+      if (isTempId(id)) {
+        cancelPendingCreate(id, "addPlan");
+        return;
+      }
+      try {
+        await api.delete(`/api/plans/${id}`);
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("removePlan", { id });
+      }
+    },
+    [persistCache, enqueue, cancelPendingCreate]
+  );
 
   const addCustomExercise = useCallback(
     async (name: string, category: MuscleGroup, equipment: Equipment): Promise<Exercise> => {
-      const exercise = await api.post<Exercise>("/api/custom-exercises", { name, category, equipment });
-      setCustomExercises((prev) => [...prev, exercise]);
-      return exercise;
+      const tempId = newTempId("ce");
+      const optimistic: Exercise = { id: tempId, name, category, equipment };
+      setCustomExercises((prev) => {
+        const next = [...prev, optimistic];
+        persistCache({ customExercises: next });
+        return next;
+      });
+      try {
+        const exercise = await api.post<Exercise>("/api/custom-exercises", { name, category, equipment });
+        setCustomExercises((prev) => {
+          const next = prev.map((e) => (e.id === tempId ? exercise : e));
+          persistCache({ customExercises: next });
+          return next;
+        });
+        return exercise;
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("addCustomExercise", { tempId, name, category, equipment });
+        return optimistic;
+      }
     },
-    []
+    [persistCache, enqueue]
   );
 
   const value = useMemo<Store>(
@@ -274,6 +659,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       plans,
       customExercises,
       ready,
+      online,
+      pendingCount,
       draft,
       startDraft,
       startProgram,
@@ -297,6 +684,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       plans,
       customExercises,
       ready,
+      online,
+      pendingCount,
       draft,
       startDraft,
       startProgram,
