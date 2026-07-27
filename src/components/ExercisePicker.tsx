@@ -229,10 +229,24 @@ function ExerciseDetailSheet({
           {MUSCLE_GROUP_LABELS[exercise.category]} · {EQUIPMENT_LABELS[exercise.equipment]}
         </p>
 
-        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Как выполнять</p>
-        <p className="text-sm leading-relaxed mb-5">
-          {exercise.description ?? "Описание для этого упражнения ещё не добавлено."}
-        </p>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-2">Как выполнять</p>
+        {exercise.description && exercise.description.length > 0 ? (
+          <div className="flex flex-col gap-2.5 mb-5">
+            {exercise.description.map((step, i) => (
+              <div key={i} className="flex gap-2.5 items-start">
+                <span
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5"
+                  style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+                >
+                  {i + 1}
+                </span>
+                <p className="text-sm leading-relaxed">{step}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted mb-5">Описание для этого упражнения ещё не добавлено.</p>
+        )}
 
         <button
           onClick={onAdd}
