@@ -18,6 +18,8 @@ export interface WorkoutSession {
   startedAt: number;
   finishedAt: number | null;
   exercises: ExerciseLog[];
+  programId: string | null;
+  color: string;
 }
 
 export interface DraftExercise {
@@ -25,4 +27,28 @@ export interface DraftExercise {
   name: string;
   category: string;
   sets: SetLog[];
+}
+
+export interface ProgramExercise {
+  exerciseId: string;
+  name: string;
+  category: string;
+  sets: number;
+  reps: number;
+}
+
+export interface Program {
+  id: string;
+  name: string;
+  color: string;
+  exercises: ProgramExercise[];
+  createdAt: number;
+}
+
+export interface PlannedWorkout {
+  id: string;
+  date: string; // YYYY-MM-DD
+  programId: string | null;
+  title: string;
+  color: string;
 }

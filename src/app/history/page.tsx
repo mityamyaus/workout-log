@@ -5,6 +5,7 @@ import { ChevronDown, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { sessionVolume } from "@/lib/stats";
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/exercises";
+import { DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
 
 export default function HistoryPage() {
   const { sessions, ready, deleteSession } = useStore();
@@ -30,15 +31,16 @@ export default function HistoryPage() {
             <div key={s.id} className="rounded-3xl bg-surface border border-border overflow-hidden">
               <button
                 onClick={() => setOpenId(open ? null : s.id)}
-                className="w-full p-4 flex items-center justify-between text-left"
+                className="w-full p-4 flex items-center gap-3 text-left"
               >
-                <div>
-                  <p className="font-bold">{s.title}</p>
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color || DEFAULT_PROGRAM_COLOR }} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold truncate">{s.title}</p>
                   <p className="text-xs text-muted mt-0.5">
                     {s.date} {duration !== null ? `· ${duration} мин` : ""} · {s.exercises.length} упр.
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                   <p className="font-black" style={{ color: "var(--accent)" }}>
                     {sessionVolume(s).toFixed(0)} кг
                   </p>

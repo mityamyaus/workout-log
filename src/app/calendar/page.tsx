@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { sessionVolume, todayStr } from "@/lib/stats";
+import { PROGRAM_COLORS, DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
 
 const MONTH_LABELS = [
   "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
@@ -17,12 +19,13 @@ function toDateStr(y: number, m: number, d: number) {
 }
 
 export default function CalendarPage() {
-  const { sessions, ready } = useStore();
+  const { sessions, plans, ready, removePlan } = useStore();
   const [cursor, setCursor] = useState(() => {
     const n = new Date();
     return { y: n.getFullYear(), m: n.getMonth() };
   });
   const [selected, setSelected] = useState(todayStr());
+  const [planOpen, setPlanOpen] = useState(false);
 
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, typeof sessions>();
@@ -33,6 +36,16 @@ export default function CalendarPage() {
     }
     return map;
   }, [sessions]);
+
+  const plansByDate = useMemo(() => {
+    const map = new Map<string, typeof plans>();
+    for (const p of plans) {
+      const arr = map.get(p.date) ?? [];
+      arr.push(p);
+      map.set(p.date, arr);
+    }
+    return map;
+  }, [plans]);
 
   if (!ready) return null;
 
@@ -45,6 +58,7 @@ export default function CalendarPage() {
   ];
 
   const selectedSessions = sessionsByDate.get(selected) ?? [];
+  const selectedPlans = plansByDate.get(selected) ?? [];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-[calc(20px+env(safe-area-inset-top))] pb-6">
@@ -81,30 +95,57 @@ export default function CalendarPage() {
           {cells.map((d, i) => {
             if (d === null) return <div key={`e${i}`} />;
             const dateStr = toDateStr(cursor.y, cursor.m, d);
-            const has = sessionsByDate.has(dateStr);
+            const daySessions = sessionsByDate.get(dateStr) ?? [];
+            const dayPlans = plansByDate.get(dateStr) ?? [];
             const isToday = dateStr === todayStr();
             const isSelected = dateStr === selected;
             return (
               <button
                 key={dateStr}
                 onClick={() => setSelected(dateStr)}
-                className="aspect-square rounded-xl flex items-center justify-center text-xs font-bold relative"
+                className="aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 relative"
                 style={{
-                  background: isSelected ? "var(--accent)" : has ? "var(--surface-2)" : "transparent",
-                  color: isSelected ? "var(--accent-foreground)" : "var(--foreground)",
+                  background: isSelected ? "var(--surface-2)" : "transparent",
                   outline: isToday && !isSelected ? "1.5px solid var(--muted)" : "none",
                 }}
               >
-                {d}
+                <span className="text-xs font-bold">{d}</span>
+                <div className="flex items-center gap-0.5 h-1.5">
+                  {daySessions.slice(0, 3).map((s, si) => (
+                    <span
+                      key={`s${si}`}
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: s.color || DEFAULT_PROGRAM_COLOR }}
+                    />
+                  ))}
+                  {daySessions.length === 0 &&
+                    dayPlans.slice(0, 3).map((p, pi) => (
+                      <span
+                        key={`p${pi}`}
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ border: `1.5px solid ${p.color}` }}
+                      />
+                    ))}
+                </div>
               </button>
             );
           })}
         </div>
       </div>
 
-      <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-2">{selected}</p>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{selected}</p>
+        <button
+          onClick={() => setPlanOpen(true)}
+          className="text-[11px] font-bold flex items-center gap-1"
+          style={{ color: "var(--accent)" }}
+        >
+          <Plus size={13} /> Запланировать
+        </button>
+      </div>
+
       <div className="flex flex-col gap-2">
-        {selectedSessions.length === 0 && (
+        {selectedSessions.length === 0 && selectedPlans.length === 0 && (
           <div className="rounded-3xl bg-surface border border-border p-4 text-sm text-muted">
             Тренировок в этот день нет
           </div>
@@ -113,17 +154,137 @@ export default function CalendarPage() {
           <Link
             key={s.id}
             href="/history"
-            className="rounded-3xl bg-surface border border-border p-4 flex items-center justify-between"
+            className="rounded-3xl bg-surface border border-border p-4 flex items-center gap-3"
           >
-            <div>
-              <p className="font-bold">{s.title}</p>
+            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color || DEFAULT_PROGRAM_COLOR }} />
+            <div className="flex-1 min-w-0">
+              <p className="font-bold truncate">{s.title}</p>
               <p className="text-xs text-muted mt-0.5">{s.exercises.length} упражнений</p>
             </div>
-            <p className="font-black" style={{ color: "var(--accent)" }}>
+            <p className="font-black shrink-0" style={{ color: "var(--accent)" }}>
               {sessionVolume(s).toFixed(0)} кг
             </p>
           </Link>
         ))}
+        {selectedPlans.map((p) => (
+          <div key={p.id} className="rounded-3xl bg-surface border border-border p-4 flex items-center gap-3">
+            <div
+              className="w-2.5 h-2.5 rounded-full shrink-0"
+              style={{ border: `2px solid ${p.color}` }}
+            />
+            <div className="flex-1 min-w-0">
+              <p className="font-bold truncate">{p.title}</p>
+              <p className="text-xs text-muted mt-0.5">Запланировано</p>
+            </div>
+            <button onClick={() => removePlan(p.id)} className="p-1.5 text-muted shrink-0">
+              <X size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {planOpen && <PlanModal date={selected} onClose={() => setPlanOpen(false)} />}
+    </div>
+  );
+}
+
+function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
+  const { programs, addPlan } = useStore();
+  const router = useRouter();
+  const [programId, setProgramId] = useState<string | null>(null);
+  const [title, setTitle] = useState("Тренировка");
+  const [color, setColor] = useState(DEFAULT_PROGRAM_COLOR);
+  const isToday = date === todayStr();
+
+  const selectProgram = (id: string | null) => {
+    setProgramId(id);
+    if (id) {
+      const p = programs.find((pr) => pr.id === id);
+      if (p) {
+        setTitle(p.name);
+        setColor(p.color);
+      }
+    } else {
+      setTitle("Тренировка");
+    }
+  };
+
+  const handleSave = () => {
+    addPlan(date, programId, title.trim() || "Тренировка", color);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={onClose}>
+      <div
+        className="max-w-md w-full mx-auto rounded-t-[28px] bg-background p-5 pb-[calc(24px+env(safe-area-inset-bottom))]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-xl font-black mb-4">Запланировать на {date}</h2>
+
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Название</p>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full h-11 rounded-xl bg-surface-2 px-3.5 text-sm font-semibold outline-none mb-4"
+        />
+
+        {programs.length > 0 && (
+          <>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Программа</p>
+            <div className="flex flex-col gap-1.5 mb-4">
+              <button
+                onClick={() => selectProgram(null)}
+                className="rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold bg-surface-2"
+                style={{ outline: programId === null ? "2px solid var(--accent)" : "none" }}
+              >
+                Без программы
+              </button>
+              {programs.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => selectProgram(p.id)}
+                  className="rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold bg-surface-2 flex items-center gap-2"
+                  style={{ outline: programId === p.id ? "2px solid var(--accent)" : "none" }}
+                >
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Цвет</p>
+        <div className="flex flex-wrap gap-2 mb-5">
+          {PROGRAM_COLORS.map((c) => (
+            <button
+              key={c}
+              onClick={() => setColor(c)}
+              className="w-9 h-9 rounded-full"
+              style={{ background: c, outline: color === c ? "2.5px solid var(--foreground)" : "none", outlineOffset: 2 }}
+            />
+          ))}
+        </div>
+
+        <button
+          onClick={handleSave}
+          className="w-full h-12 rounded-2xl font-bold"
+          style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+        >
+          Сохранить план
+        </button>
+        {isToday && (
+          <button
+            onClick={() => {
+              handleSave();
+              router.push("/workout");
+            }}
+            className="w-full h-11 rounded-2xl font-bold text-sm mt-2 text-muted"
+          >
+            Сохранить и начать сейчас
+          </button>
+        )}
       </div>
     </div>
   );

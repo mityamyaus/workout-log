@@ -6,6 +6,7 @@ import { Sun, Moon, ArrowRight, ChevronRight, User } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 import { useProfile } from "@/lib/profile";
+import { DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
 import {
   computeStreak,
   currentWeekDates,
@@ -131,7 +132,7 @@ export default function TodayPage() {
           href="/history"
           className="rounded-3xl bg-surface border border-border p-4 flex items-center gap-3"
         >
-          <div className="w-1 self-stretch rounded-full" style={{ background: "var(--accent)" }} />
+          <div className="w-1 self-stretch rounded-full" style={{ background: lastSession.color || DEFAULT_PROGRAM_COLOR }} />
           <div className="flex-1 min-w-0">
             <p className="font-bold truncate">{lastSession.title}</p>
             <p className="text-xs text-muted mt-0.5">

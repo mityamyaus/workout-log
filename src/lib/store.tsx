@@ -8,22 +8,36 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { DraftExercise, WorkoutSession } from "./types";
+import type { DraftExercise, PlannedWorkout, Program, ProgramExercise, WorkoutSession } from "./types";
+import { DEFAULT_PROGRAM_COLOR } from "./colors";
 
 const SESSIONS_KEY = "wa_sessions_v1";
 const DRAFT_KEY = "wa_draft_v1";
+const PROGRAMS_KEY = "wa_programs_v1";
+const PLANS_KEY = "wa_plans_v1";
 
 interface DraftSession {
   title: string;
   startedAt: number;
   exercises: DraftExercise[];
+  programId: string | null;
+  color: string;
+}
+
+interface StartDraftOptions {
+  title?: string;
+  programId?: string | null;
+  color?: string;
+  exercises?: DraftExercise[];
 }
 
 interface Store {
   sessions: WorkoutSession[];
+  programs: Program[];
+  plans: PlannedWorkout[];
   ready: boolean;
   draft: DraftSession | null;
-  startDraft: () => void;
+  startDraft: (options?: StartDraftOptions) => void;
   discardDraft: () => void;
   addExerciseToDraft: (exerciseId: string, name: string, category: string) => void;
   removeExerciseFromDraft: (exerciseId: string) => void;
@@ -32,6 +46,10 @@ interface Store {
   removeSet: (exerciseId: string, index: number) => void;
   finishDraft: () => void;
   deleteSession: (id: string) => void;
+  saveProgram: (program: { id?: string; name: string; color: string; exercises: ProgramExercise[] }) => void;
+  deleteProgram: (id: string) => void;
+  addPlan: (date: string, programId: string | null, title: string, color: string) => void;
+  removePlan: (id: string) => void;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -40,18 +58,27 @@ function todayStr(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
+function load<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [plans, setPlans] = useState<PlannedWorkout[]>([]);
   const [draft, setDraft] = useState<DraftSession | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      const s = localStorage.getItem(SESSIONS_KEY);
-      if (s) setSessions(JSON.parse(s));
-      const d = localStorage.getItem(DRAFT_KEY);
-      if (d) setDraft(JSON.parse(d));
-    } catch {}
+    setSessions(load(SESSIONS_KEY, []));
+    setPrograms(load(PROGRAMS_KEY, []));
+    setPlans(load(PLANS_KEY, []));
+    setDraft(load(DRAFT_KEY, null));
     setReady(true);
   }, []);
 
@@ -62,12 +89,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!ready) return;
+    localStorage.setItem(PROGRAMS_KEY, JSON.stringify(programs));
+  }, [programs, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
+  }, [plans, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
     if (draft) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     else localStorage.removeItem(DRAFT_KEY);
   }, [draft, ready]);
 
-  const startDraft = useCallback(() => {
-    setDraft({ title: "Тренировка", startedAt: Date.now(), exercises: [] });
+  const startDraft = useCallback((options?: StartDraftOptions) => {
+    setDraft({
+      title: options?.title || "Тренировка",
+      startedAt: Date.now(),
+      exercises: options?.exercises ?? [],
+      programId: options?.programId ?? null,
+      color: options?.color ?? DEFAULT_PROGRAM_COLOR,
+    });
   }, []);
 
   const discardDraft = useCallback(() => setDraft(null), []);
@@ -154,6 +197,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       startedAt: draft.startedAt,
       finishedAt: Date.now(),
       exercises,
+      programId: draft.programId,
+      color: draft.color,
     };
     setSessions((sPrev) => [session, ...sPrev]);
     setDraft(null);
@@ -163,9 +208,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setSessions((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
+  const saveProgram = useCallback(
+    (program: { id?: string; name: string; color: string; exercises: ProgramExercise[] }) => {
+      setPrograms((prev) => {
+        if (program.id) {
+          return prev.map((p) => (p.id === program.id ? { ...p, ...program, id: program.id } : p));
+        }
+        const created: Program = {
+          id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          name: program.name,
+          color: program.color,
+          exercises: program.exercises,
+          createdAt: Date.now(),
+        };
+        return [...prev, created];
+      });
+    },
+    []
+  );
+
+  const deleteProgram = useCallback((id: string) => {
+    setPrograms((prev) => prev.filter((p) => p.id !== id));
+    setPlans((prev) => prev.filter((p) => p.programId !== id));
+  }, []);
+
+  const addPlan = useCallback((date: string, programId: string | null, title: string, color: string) => {
+    setPlans((prev) => [
+      ...prev,
+      { id: `pl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, date, programId, title, color },
+    ]);
+  }, []);
+
+  const removePlan = useCallback((id: string) => {
+    setPlans((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
   const value = useMemo<Store>(
     () => ({
       sessions,
+      programs,
+      plans,
       ready,
       draft,
       startDraft,
@@ -177,8 +259,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeSet,
       finishDraft,
       deleteSession,
+      saveProgram,
+      deleteProgram,
+      addPlan,
+      removePlan,
     }),
-    [sessions, ready, draft, startDraft, discardDraft, addExerciseToDraft, removeExerciseFromDraft, addSet, updateSet, removeSet, finishDraft, deleteSession]
+    [
+      sessions,
+      programs,
+      plans,
+      ready,
+      draft,
+      startDraft,
+      discardDraft,
+      addExerciseToDraft,
+      removeExerciseFromDraft,
+      addSet,
+      updateSet,
+      removeSet,
+      finishDraft,
+      deleteSession,
+      saveProgram,
+      deleteProgram,
+      addPlan,
+      removePlan,
+    ]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

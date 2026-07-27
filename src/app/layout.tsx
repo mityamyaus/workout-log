@@ -37,12 +37,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className="h-full antialiased" suppressHydrationWarning>
-      <body className="min-h-full flex flex-col">
+    <html lang="ru" className="h-dvh antialiased overflow-hidden" suppressHydrationWarning>
+      <body className="h-dvh flex flex-col overflow-hidden">
         <ThemeProvider>
           <ProfileProvider>
             <StoreProvider>
-              <div className="flex-1 pb-[calc(84px+env(safe-area-inset-bottom))]">{children}</div>
+              <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain">{children}</main>
               <BottomNav />
             </StoreProvider>
           </ProfileProvider>
