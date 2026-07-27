@@ -33,7 +33,8 @@ export default function ProgramsPage() {
         <>
           <Link
             href="/programs/new"
-            className="w-full h-12 rounded-2xl border-2 border-dashed border-border font-bold text-sm text-muted flex items-center justify-center gap-2 mb-4"
+            className="w-full h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-4"
+            style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
           >
             <Plus size={16} /> Новая программа
           </Link>
