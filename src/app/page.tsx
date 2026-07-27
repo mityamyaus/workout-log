@@ -1,65 +1,157 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Sun, Moon, ArrowRight, ChevronRight } from "lucide-react";
+import { useStore } from "@/lib/store";
+import { useTheme } from "@/lib/theme";
+import {
+  computeStreak,
+  currentWeekDates,
+  formatVolume,
+  sessionsThisWeek,
+  totalVolumeThisWeek,
+  todayStr,
+} from "@/lib/stats";
+
+const WEEKDAY_LABELS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
+const WEEKLY_GOAL = 5;
+
+export default function TodayPage() {
+  const { sessions, draft, ready } = useStore();
+  const { theme, toggleTheme } = useTheme();
+  const router = useRouter();
+
+  if (!ready) return null;
+
+  const streak = computeStreak(sessions);
+  const weekCount = sessionsThisWeek(sessions);
+  const volume = totalVolumeThisWeek(sessions);
+  const weekDates = currentWeekDates();
+  const today = todayStr();
+  const sessionDays = new Set(sessions.map((s) => s.date));
+  const lastSession = sessions[0];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="max-w-md mx-auto px-4 pt-[calc(20px+env(safe-area-inset-top))] pb-6">
+      <div className="flex items-start justify-between mb-5">
+        <h1 className="text-[34px] leading-[1.05] font-black tracking-tight uppercase">
+          Давай
+          <br />
+          за <span style={{ color: "var(--accent)" }}>работу.</span>
+        </h1>
+        <button
+          onClick={toggleTheme}
+          className="mt-1 shrink-0 w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center"
+          aria-label="Переключить тему"
+        >
+          {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <StatCard label="Серия" value={streak} unit="дней" highlight />
+        <StatCard label="На этой неделе" value={weekCount} unit={`/${WEEKLY_GOAL} трен.`} />
+        <StatCard label="Объём" value={formatVolume(volume).value} unit={formatVolume(volume).unit} />
+      </div>
+
+      <div className="rounded-3xl p-5 mb-5" style={{ background: "var(--accent)" }}>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-black/60">
+            {draft ? "Тренировка в процессе" : "Сегодня"}
+          </span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <p className="text-2xl font-black text-black mb-4">
+          {draft ? draft.title : "Нет плана — начни тренировку"}
+        </p>
+        <button
+          onClick={() => {
+            router.push("/workout");
+          }}
+          className="w-full h-12 rounded-2xl bg-black text-white font-bold flex items-center justify-center gap-2"
+        >
+          {draft ? "Продолжить" : "Начать тренировку"} <ArrowRight size={18} />
+        </button>
+      </div>
+
+      <div className="rounded-3xl bg-surface border border-border p-5 mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Прогресс недели</span>
+          <span className="text-[11px] font-bold text-muted">{weekCount} из 7</span>
         </div>
-      </main>
+        <div className="flex justify-between">
+          {weekDates.map((d, i) => {
+            const done = sessionDays.has(d);
+            const isToday = d === today;
+            return (
+              <div key={d} className="flex flex-col items-center gap-1.5">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold"
+                  style={{
+                    background: done ? "var(--accent)" : "var(--surface-2)",
+                    color: done ? "var(--accent-foreground)" : "var(--muted)",
+                    outline: isToday ? "2px solid var(--foreground)" : "none",
+                    outlineOffset: "2px",
+                  }}
+                >
+                  {done ? "✓" : ""}
+                </div>
+                <span
+                  className="text-[10px] font-semibold"
+                  style={{ color: isToday ? "var(--foreground)" : "var(--muted)" }}
+                >
+                  {WEEKDAY_LABELS[i]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mb-2">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Последняя тренировка</span>
+      </div>
+      {lastSession ? (
+        <Link
+          href="/history"
+          className="rounded-3xl bg-surface border border-border p-4 flex items-center gap-3"
+        >
+          <div className="w-1 self-stretch rounded-full" style={{ background: "var(--accent)" }} />
+          <div className="flex-1 min-w-0">
+            <p className="font-bold truncate">{lastSession.title}</p>
+            <p className="text-xs text-muted mt-0.5">
+              {lastSession.date} · {lastSession.exercises.length} упражнений
+            </p>
+          </div>
+          <ChevronRight size={18} color="var(--muted)" />
+        </Link>
+      ) : (
+        <div className="rounded-3xl bg-surface border border-border p-4 text-sm text-muted">
+          Пока нет завершённых тренировок
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  unit,
+  highlight,
+}: {
+  label: string;
+  value: string | number;
+  unit: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="rounded-3xl bg-surface border border-border p-3.5">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-muted mb-2">{label}</p>
+      <p className="text-2xl font-black leading-none" style={{ color: highlight ? "var(--accent)" : "var(--foreground)" }}>
+        {value}
+      </p>
+      <p className="text-[10px] font-semibold text-muted mt-1">{unit}</p>
     </div>
   );
 }
