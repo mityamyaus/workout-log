@@ -3,11 +3,12 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Clock, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Pencil, Plus, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { sessionVolume, todayStr } from "@/lib/stats";
 import { PROGRAM_COLORS, DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
 import { subscribeToPush } from "@/lib/push";
+import type { PlannedWorkout } from "@/lib/types";
 
 const REMINDER_OPTIONS: { label: string; value: number | null }[] = [
   { label: "Без напоминания", value: null },
@@ -16,6 +17,9 @@ const REMINDER_OPTIONS: { label: string; value: number | null }[] = [
   { label: "За 1 час", value: 60 },
   { label: "За 1 день", value: 1440 },
 ];
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0"));
 
 const MONTH_LABELS = [
   "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
@@ -35,6 +39,7 @@ export default function CalendarPage() {
   });
   const [selected, setSelected] = useState(todayStr());
   const [planOpen, setPlanOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<PlannedWorkout | null>(null);
 
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, typeof sessions>();
@@ -182,22 +187,22 @@ export default function CalendarPage() {
         ))}
         {selectedPlans.map((p) => (
           <div key={p.id} className="rounded-3xl bg-surface border border-border p-4 flex items-center gap-3">
-            <div
-              className="w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ border: `2px solid ${p.color}` }}
-            />
-            <div className="flex-1 min-w-0">
-              <p className="font-bold truncate">{p.title}</p>
-              <p className="text-xs text-muted mt-0.5 flex items-center gap-1">
-                {p.time ? (
-                  <>
-                    <Clock size={11} /> {p.time}
-                  </>
-                ) : (
-                  "Запланировано"
-                )}
-              </p>
-            </div>
+            <button onClick={() => setEditingPlan(p)} className="flex-1 min-w-0 flex items-center gap-3 text-left">
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ border: `2px solid ${p.color}` }} />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold truncate">{p.title}</p>
+                <p className="text-xs text-muted mt-0.5 flex items-center gap-1">
+                  {p.time ? (
+                    <>
+                      <Clock size={11} /> {p.time}
+                    </>
+                  ) : (
+                    "Запланировано"
+                  )}
+                </p>
+              </div>
+              <Pencil size={14} color="var(--muted)" className="shrink-0" />
+            </button>
             <button onClick={() => removePlan(p.id)} className="p-1.5 text-muted shrink-0">
               <X size={16} />
             </button>
@@ -206,18 +211,88 @@ export default function CalendarPage() {
       </div>
 
       {planOpen && <PlanModal date={selected} onClose={() => setPlanOpen(false)} />}
+      {editingPlan && (
+        <PlanModal date={editingPlan.date} existing={editingPlan} onClose={() => setEditingPlan(null)} />
+      )}
     </div>
   );
 }
 
-function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
-  const { programs, addPlan, startDraft, startProgram } = useStore();
+function splitTime(time: string | null): [string, string] {
+  if (!time) return ["", ""];
+  const [h, m] = time.split(":");
+  return [h, m];
+}
+
+function TimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [hour, minute] = splitTime(value || null);
+
+  const update = (h: string, m: string) => {
+    if (!h || !m) {
+      onChange("");
+      return;
+    }
+    onChange(`${h}:${m}`);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        value={hour}
+        onChange={(e) => update(e.target.value, minute || "00")}
+        className="flex-1 h-11 rounded-xl bg-surface-2 px-2 text-sm font-semibold outline-none min-w-0"
+      >
+        <option value="">--</option>
+        {HOURS.map((h) => (
+          <option key={h} value={h}>
+            {h}
+          </option>
+        ))}
+      </select>
+      <span className="text-sm font-bold text-muted">:</span>
+      <select
+        value={minute}
+        onChange={(e) => update(hour || "00", e.target.value)}
+        className="flex-1 h-11 rounded-xl bg-surface-2 px-2 text-sm font-semibold outline-none min-w-0"
+      >
+        <option value="">--</option>
+        {MINUTES.map((m) => (
+          <option key={m} value={m}>
+            {m}
+          </option>
+        ))}
+      </select>
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          className="w-9 h-9 rounded-xl bg-surface-2 flex items-center justify-center shrink-0"
+          aria-label="Очистить время"
+        >
+          <X size={14} color="var(--muted)" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PlanModal({
+  date,
+  existing,
+  onClose,
+}: {
+  date: string;
+  existing?: PlannedWorkout;
+  onClose: () => void;
+}) {
+  const { programs, addPlan, updatePlan, removePlan, startDraft, startProgram } = useStore();
   const router = useRouter();
-  const [programId, setProgramId] = useState<string | null>(null);
-  const [title, setTitle] = useState("Тренировка");
-  const [color, setColor] = useState(DEFAULT_PROGRAM_COLOR);
-  const [time, setTime] = useState("");
-  const [reminderMinutesBefore, setReminderMinutesBefore] = useState<number | null>(null);
+  const [programId, setProgramId] = useState<string | null>(existing?.programId ?? null);
+  const [title, setTitle] = useState(existing?.title ?? "Тренировка");
+  const [color, setColor] = useState(existing?.color ?? DEFAULT_PROGRAM_COLOR);
+  const [time, setTime] = useState(existing?.time ?? "");
+  const [reminderMinutesBefore, setReminderMinutesBefore] = useState<number | null>(
+    existing?.reminderMinutesBefore ?? null
+  );
   const isToday = date === todayStr();
 
   const selectProgram = (id: string | null) => {
@@ -237,24 +312,36 @@ function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
     if (time && reminderMinutesBefore !== null) {
       await subscribeToPush().catch(() => {});
     }
-    addPlan({
+    const input = {
       date,
       time: time || null,
       programId,
       title: title.trim() || "Тренировка",
       color,
       reminderMinutesBefore: time ? reminderMinutesBefore : null,
-    });
+    };
+    if (existing) await updatePlan(existing.id, input);
+    else await addPlan(input);
     onClose();
+  };
+
+  const handleDelete = async () => {
+    if (!existing) return;
+    if (confirm("Удалить план?")) {
+      await removePlan(existing.id);
+      onClose();
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={onClose}>
       <div
-        className="max-w-md w-full mx-auto rounded-t-[28px] bg-background p-5 pb-[calc(24px+env(safe-area-inset-bottom))]"
+        className="max-w-md w-full mx-auto rounded-t-[28px] bg-background p-5 pb-[calc(24px+env(safe-area-inset-bottom))] max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-xl font-black mb-4">Запланировать на {date}</h2>
+        <h2 className="text-xl font-black mb-4">
+          {existing ? "Изменить план" : "Запланировать"} на {date}
+        </h2>
 
         <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Название</p>
         <input
@@ -264,12 +351,9 @@ function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
         />
 
         <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Время начала</p>
-        <input
-          type="time"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          className="w-full h-11 rounded-xl bg-surface-2 px-3.5 text-sm font-semibold outline-none mb-4"
-        />
+        <div className="mb-4">
+          <TimePicker value={time} onChange={setTime} />
+        </div>
 
         {time && (
           <>
@@ -335,9 +419,9 @@ function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
           className="w-full h-12 rounded-2xl font-bold"
           style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
         >
-          Сохранить план
+          {existing ? "Сохранить изменения" : "Сохранить план"}
         </button>
-        {isToday && (
+        {isToday && !existing && (
           <button
             onClick={() => {
               if (programId) startProgram(programId);
@@ -348,6 +432,11 @@ function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
             className="w-full h-11 rounded-2xl font-bold text-sm mt-2 text-muted"
           >
             Начать сейчас
+          </button>
+        )}
+        {existing && (
+          <button onClick={handleDelete} className="w-full h-11 rounded-2xl font-bold text-sm mt-2 text-danger">
+            Удалить план
           </button>
         )}
       </div>

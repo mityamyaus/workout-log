@@ -4,6 +4,7 @@ export type QueueOpKind =
   | "saveProgram"
   | "deleteProgram"
   | "addPlan"
+  | "updatePlan"
   | "removePlan"
   | "addCustomExercise"
   | "updateProfile";

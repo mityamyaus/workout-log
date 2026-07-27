@@ -70,6 +70,17 @@ interface Store {
     color: string;
     reminderMinutesBefore: number | null;
   }) => Promise<void>;
+  updatePlan: (
+    id: string,
+    input: {
+      date: string;
+      time: string | null;
+      programId: string | null;
+      title: string;
+      color: string;
+      reminderMinutesBefore: number | null;
+    }
+  ) => Promise<void>;
   removePlan: (id: string) => Promise<void>;
   addCustomExercise: (name: string, category: MuscleGroup, equipment: Equipment) => Promise<Exercise>;
 }
@@ -154,6 +165,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       case "addPlan": {
         const { tempId: _tempId, ...body } = payload;
         return api.post("/api/plans", body);
+      }
+      case "updatePlan": {
+        const { id, ...body } = payload;
+        return api.patch(`/api/plans/${id}`, body);
       }
       case "removePlan":
         return api.delete(`/api/plans/${payload.id}`);
@@ -628,6 +643,59 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [persistCache, enqueue]
   );
 
+  const updatePlan = useCallback(
+    async (
+      id: string,
+      input: {
+        date: string;
+        time: string | null;
+        programId: string | null;
+        title: string;
+        color: string;
+        reminderMinutesBefore: number | null;
+      }
+    ) => {
+      const remindAt = computeRemindAt(input.date, input.time, input.reminderMinutesBefore);
+      const body = { ...input, remindAt };
+      const optimistic: PlannedWorkout = { id, ...input, remindAt };
+
+      if (isTempId(id)) {
+        // Still-unsynced plan: patch the pending create op in place.
+        const queue = loadQueue();
+        const idx = queue.findIndex((op) => op.kind === "addPlan" && op.payload.tempId === id);
+        if (idx !== -1) {
+          queue[idx].payload = { ...queue[idx].payload, ...body };
+          saveQueue(queue);
+        }
+        setPlans((prev) => {
+          const next = prev.map((p) => (p.id === id ? optimistic : p));
+          persistCache({ plans: next });
+          return next;
+        });
+        return;
+      }
+
+      setPlans((prev) => {
+        const next = prev.map((p) => (p.id === id ? optimistic : p));
+        persistCache({ plans: next });
+        return next;
+      });
+      try {
+        const plan = await api.patch<PlannedWorkout>(`/api/plans/${id}`, body);
+        setPlans((prev) => {
+          const next = prev.map((p) => (p.id === id ? plan : p));
+          persistCache({ plans: next });
+          return next;
+        });
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("updatePlan", { id, ...body });
+      }
+    },
+    [persistCache, enqueue]
+  );
+
   const removePlan = useCallback(
     async (id: string) => {
       setPlans((prev) => {
@@ -700,6 +768,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       saveProgram,
       deleteProgram,
       addPlan,
+      updatePlan,
       removePlan,
       addCustomExercise,
     }),
@@ -725,6 +794,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       saveProgram,
       deleteProgram,
       addPlan,
+      updatePlan,
       removePlan,
       addCustomExercise,
     ]
