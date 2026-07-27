@@ -62,7 +62,14 @@ interface Store {
   deleteSession: (id: string) => Promise<void>;
   saveProgram: (program: { id?: string; name: string; color: string; exercises: ProgramExercise[] }) => Promise<void>;
   deleteProgram: (id: string) => Promise<void>;
-  addPlan: (date: string, programId: string | null, title: string, color: string) => Promise<void>;
+  addPlan: (input: {
+    date: string;
+    time: string | null;
+    programId: string | null;
+    title: string;
+    color: string;
+    reminderMinutesBefore: number | null;
+  }) => Promise<void>;
   removePlan: (id: string) => Promise<void>;
   addCustomExercise: (name: string, category: MuscleGroup, equipment: Equipment) => Promise<Exercise>;
 }
@@ -71,6 +78,15 @@ const StoreContext = createContext<Store | null>(null);
 
 function todayStr(d = new Date()) {
   return d.toISOString().slice(0, 10);
+}
+
+/** Computed in the device's local timezone so the server only ever deals with an absolute instant. */
+function computeRemindAt(date: string, time: string | null, reminderMinutesBefore: number | null): number | null {
+  if (!time || reminderMinutesBefore === null) return null;
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const workoutAt = new Date(year, month - 1, day, hour, minute);
+  return workoutAt.getTime() - reminderMinutesBefore * 60_000;
 }
 
 function loadCache(): Cache {
@@ -579,16 +595,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addPlan = useCallback(
-    async (date: string, programId: string | null, title: string, color: string) => {
+    async (input: {
+      date: string;
+      time: string | null;
+      programId: string | null;
+      title: string;
+      color: string;
+      reminderMinutesBefore: number | null;
+    }) => {
       const tempId = newTempId("pl");
-      const optimistic: PlannedWorkout = { id: tempId, date, programId, title, color };
+      const remindAt = computeRemindAt(input.date, input.time, input.reminderMinutesBefore);
+      const optimistic: PlannedWorkout = { id: tempId, ...input, remindAt };
+      const body = { ...input, remindAt };
       setPlans((prev) => {
         const next = [...prev, optimistic];
         persistCache({ plans: next });
         return next;
       });
       try {
-        const plan = await api.post<PlannedWorkout>("/api/plans", { date, programId, title, color });
+        const plan = await api.post<PlannedWorkout>("/api/plans", body);
         setPlans((prev) => {
           const next = prev.map((p) => (p.id === tempId ? plan : p));
           persistCache({ plans: next });
@@ -597,7 +622,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         if (!(err instanceof NetworkError)) throw err;
         setOnline(false);
-        enqueue("addPlan", { tempId, date, programId, title, color });
+        enqueue("addPlan", { tempId, ...body });
       }
     },
     [persistCache, enqueue]

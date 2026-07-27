@@ -48,9 +48,12 @@ export interface Program {
 export interface PlannedWorkout {
   id: string;
   date: string; // YYYY-MM-DD
+  time: string | null; // HH:mm
   programId: string | null;
   title: string;
   color: string;
+  reminderMinutesBefore: number | null;
+  remindAt: number | null; // absolute UTC timestamp (ms), computed client-side
 }
 
 export interface WeightEntry {

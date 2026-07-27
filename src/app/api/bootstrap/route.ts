@@ -38,9 +38,12 @@ export async function GET() {
     plans: plans.map((row) => ({
       id: row.id,
       date: row.date,
+      time: row.time,
       programId: row.programId,
       title: row.title,
       color: row.color,
+      reminderMinutesBefore: row.reminderMinutesBefore,
+      remindAt: row.remindAt ? row.remindAt.getTime() : null,
     })),
     customExercises: customExercises.map((row) => ({
       id: row.id,

@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronLeft, LogOut, User } from "lucide-react";
+import { ChevronLeft, LogOut, User, Bell, BellOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush, isPushSupported } from "@/lib/push";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -13,6 +14,9 @@ export default function ProfilePage() {
   const [weight, setWeight] = useState(user?.weight?.toString() ?? "");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pushState, setPushState] = useState<"unsupported" | "denied" | "subscribed" | "unsubscribed" | "loading">(
+    "loading"
+  );
 
   useEffect(() => {
     if (!ready || !user) return;
@@ -21,6 +25,24 @@ export default function ProfilePage() {
     setWeight(user.weight?.toString() ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user?.id]);
+
+  useEffect(() => {
+    if (!isPushSupported()) {
+      setPushState("unsupported");
+      return;
+    }
+    getPushSubscriptionState().then(setPushState);
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    if (pushState === "subscribed") {
+      await unsubscribeFromPush();
+      setPushState("unsubscribed");
+    } else {
+      const ok = await subscribeToPush();
+      setPushState(ok ? "subscribed" : Notification.permission === "denied" ? "denied" : "unsubscribed");
+    }
+  };
 
   if (!ready || !user) return null;
 
@@ -105,6 +127,34 @@ export default function ProfilePage() {
       >
         {saving ? "Сохраняем…" : saved ? "Сохранено ✓" : "Сохранить"}
       </button>
+
+      {pushState !== "unsupported" && (
+        <button
+          onClick={handleToggleNotifications}
+          disabled={pushState === "denied" || pushState === "loading"}
+          className="w-full rounded-3xl bg-surface border border-border p-4 flex items-center gap-3 mt-5 disabled:opacity-60 text-left"
+        >
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: pushState === "subscribed" ? "var(--accent)" : "var(--surface-2)" }}
+          >
+            {pushState === "subscribed" ? (
+              <Bell size={16} color="var(--accent-foreground)" />
+            ) : (
+              <BellOff size={16} color="var(--muted)" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm">Уведомления о тренировках</p>
+            <p className="text-xs text-muted mt-0.5">
+              {pushState === "subscribed" && "Включены"}
+              {pushState === "unsubscribed" && "Выключены — нажми, чтобы включить"}
+              {pushState === "denied" && "Заблокированы в настройках браузера"}
+              {pushState === "loading" && "Проверяем…"}
+            </p>
+          </div>
+        </button>
+      )}
 
       {user.weightLog.length > 0 && (
         <div className="mt-5">

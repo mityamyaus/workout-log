@@ -94,7 +94,13 @@ export default function TodayPage() {
       <div className="rounded-3xl p-5 mb-5" style={{ background: "var(--accent)" }}>
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px] font-bold uppercase tracking-wide text-black/60">
-            {draft ? "Тренировка в процессе" : todaysPlan ? "Запланировано на сегодня" : "Сегодня"}
+            {draft
+              ? "Тренировка в процессе"
+              : todaysPlan
+              ? todaysPlan.time
+                ? `Запланировано на ${todaysPlan.time}`
+                : "Запланировано на сегодня"
+              : "Сегодня"}
           </span>
         </div>
         <p className="text-2xl font-black text-black mb-4 flex items-center gap-2">

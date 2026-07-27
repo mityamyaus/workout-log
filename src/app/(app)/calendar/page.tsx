@@ -3,10 +3,19 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Plus, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { sessionVolume, todayStr } from "@/lib/stats";
 import { PROGRAM_COLORS, DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
+import { subscribeToPush } from "@/lib/push";
+
+const REMINDER_OPTIONS: { label: string; value: number | null }[] = [
+  { label: "Без напоминания", value: null },
+  { label: "За 15 мин", value: 15 },
+  { label: "За 30 мин", value: 30 },
+  { label: "За 1 час", value: 60 },
+  { label: "За 1 день", value: 1440 },
+];
 
 const MONTH_LABELS = [
   "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
@@ -179,7 +188,15 @@ export default function CalendarPage() {
             />
             <div className="flex-1 min-w-0">
               <p className="font-bold truncate">{p.title}</p>
-              <p className="text-xs text-muted mt-0.5">Запланировано</p>
+              <p className="text-xs text-muted mt-0.5 flex items-center gap-1">
+                {p.time ? (
+                  <>
+                    <Clock size={11} /> {p.time}
+                  </>
+                ) : (
+                  "Запланировано"
+                )}
+              </p>
             </div>
             <button onClick={() => removePlan(p.id)} className="p-1.5 text-muted shrink-0">
               <X size={16} />
@@ -199,6 +216,8 @@ function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
   const [programId, setProgramId] = useState<string | null>(null);
   const [title, setTitle] = useState("Тренировка");
   const [color, setColor] = useState(DEFAULT_PROGRAM_COLOR);
+  const [time, setTime] = useState("");
+  const [reminderMinutesBefore, setReminderMinutesBefore] = useState<number | null>(null);
   const isToday = date === todayStr();
 
   const selectProgram = (id: string | null) => {
@@ -214,8 +233,18 @@ function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
     }
   };
 
-  const handleSave = () => {
-    addPlan(date, programId, title.trim() || "Тренировка", color);
+  const handleSave = async () => {
+    if (time && reminderMinutesBefore !== null) {
+      await subscribeToPush().catch(() => {});
+    }
+    addPlan({
+      date,
+      time: time || null,
+      programId,
+      title: title.trim() || "Тренировка",
+      color,
+      reminderMinutesBefore: time ? reminderMinutesBefore : null,
+    });
     onClose();
   };
 
@@ -233,6 +262,35 @@ function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
           onChange={(e) => setTitle(e.target.value)}
           className="w-full h-11 rounded-xl bg-surface-2 px-3.5 text-sm font-semibold outline-none mb-4"
         />
+
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Время начала</p>
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="w-full h-11 rounded-xl bg-surface-2 px-3.5 text-sm font-semibold outline-none mb-4"
+        />
+
+        {time && (
+          <>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Напоминание</p>
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {REMINDER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={() => setReminderMinutesBefore(opt.value)}
+                  className="h-8 px-3 rounded-full text-xs font-bold"
+                  style={{
+                    background: reminderMinutesBefore === opt.value ? "var(--accent)" : "var(--surface-2)",
+                    color: reminderMinutesBefore === opt.value ? "var(--accent-foreground)" : "var(--muted)",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {programs.length > 0 && (
           <>

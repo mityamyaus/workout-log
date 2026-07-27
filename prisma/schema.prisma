@@ -19,11 +19,12 @@ model User {
   weightLog    Json     @default("[]")
   createdAt    DateTime @default(now())
 
-  authSessions    AuthSession[]
-  workoutSessions WorkoutSession[]
-  programs        Program[]
-  plannedWorkouts PlannedWorkout[]
-  customExercises CustomExercise[]
+  authSessions      AuthSession[]
+  workoutSessions   WorkoutSession[]
+  programs          Program[]
+  plannedWorkouts   PlannedWorkout[]
+  customExercises   CustomExercise[]
+  pushSubscriptions PushSubscription[]
 
   @@schema("workout_app")
 }
@@ -70,16 +71,33 @@ model Program {
 }
 
 model PlannedWorkout {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date                  String
+  time                  String?
+  programId             String?
+  title                 String
+  color                 String
+  reminderMinutesBefore Int?
+  remindAt              DateTime?
+  reminderSentAt        DateTime?
+  createdAt             DateTime  @default(now())
+
+  @@index([userId, date])
+  @@schema("workout_app")
+}
+
+model PushSubscription {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date      String
-  programId String?
-  title     String
-  color     String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
   createdAt DateTime @default(now())
 
-  @@index([userId, date])
+  @@index([userId])
   @@schema("workout_app")
 }
 
