@@ -4,10 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-  schemas   = ["workout_app"]
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["workout_app"]
 }
 
 model User {
