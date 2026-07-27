@@ -189,7 +189,7 @@ export default function CalendarPage() {
 }
 
 function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
-  const { programs, addPlan } = useStore();
+  const { programs, addPlan, startDraft, startProgram } = useStore();
   const router = useRouter();
   const [programId, setProgramId] = useState<string | null>(null);
   const [title, setTitle] = useState("Тренировка");
@@ -277,12 +277,14 @@ function PlanModal({ date, onClose }: { date: string; onClose: () => void }) {
         {isToday && (
           <button
             onClick={() => {
-              handleSave();
+              if (programId) startProgram(programId);
+              else startDraft({ title: title.trim() || "Тренировка", color });
+              onClose();
               router.push("/workout");
             }}
             className="w-full h-11 rounded-2xl font-bold text-sm mt-2 text-muted"
           >
-            Сохранить и начать сейчас
+            Начать сейчас
           </button>
         )}
       </div>

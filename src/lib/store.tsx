@@ -38,6 +38,7 @@ interface Store {
   ready: boolean;
   draft: DraftSession | null;
   startDraft: (options?: StartDraftOptions) => void;
+  startProgram: (programId: string) => void;
   discardDraft: () => void;
   addExerciseToDraft: (exerciseId: string, name: string, category: string) => void;
   removeExerciseFromDraft: (exerciseId: string) => void;
@@ -112,6 +113,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       color: options?.color ?? DEFAULT_PROGRAM_COLOR,
     });
   }, []);
+
+  const startProgram = useCallback(
+    (programId: string) => {
+      const p = programs.find((pr) => pr.id === programId);
+      if (!p) {
+        startDraft();
+        return;
+      }
+      startDraft({
+        title: p.name,
+        programId: p.id,
+        color: p.color,
+        exercises: p.exercises.map((pe) => ({
+          exerciseId: pe.exerciseId,
+          name: pe.name,
+          category: pe.category,
+          sets: Array.from({ length: pe.sets }, () => ({ weight: 0, reps: pe.reps, completed: false })),
+        })),
+      });
+    },
+    [programs, startDraft]
+  );
 
   const discardDraft = useCallback(() => setDraft(null), []);
 
@@ -251,6 +274,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ready,
       draft,
       startDraft,
+      startProgram,
       discardDraft,
       addExerciseToDraft,
       removeExerciseFromDraft,
@@ -271,6 +295,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ready,
       draft,
       startDraft,
+      startProgram,
       discardDraft,
       addExerciseToDraft,
       removeExerciseFromDraft,

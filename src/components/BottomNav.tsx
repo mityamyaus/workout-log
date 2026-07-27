@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Dumbbell, History, House, BarChart3 } from "lucide-react";
+import { CalendarDays, ListChecks, History, House, BarChart3 } from "lucide-react";
 
 const items = [
   { href: "/", label: "Сегодня", icon: House },
-  { href: "/workout", label: "Тренировка", icon: Dumbbell },
+  { href: "/programs", label: "Программы", icon: ListChecks },
   { href: "/calendar", label: "Календарь", icon: CalendarDays },
   { href: "/history", label: "История", icon: History },
   { href: "/stats", label: "Статистика", icon: BarChart3 },

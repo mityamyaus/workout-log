@@ -20,7 +20,7 @@ const WEEKDAY_LABELS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 const WEEKLY_GOAL = 5;
 
 export default function TodayPage() {
-  const { sessions, draft, ready } = useStore();
+  const { sessions, plans, draft, ready, startDraft, startProgram, removePlan } = useStore();
   const { theme, toggleTheme } = useTheme();
   const { profile, ready: profileReady } = useProfile();
   const router = useRouter();
@@ -34,6 +34,22 @@ export default function TodayPage() {
   const today = todayStr();
   const sessionDays = new Set(sessions.map((s) => s.date));
   const lastSession = sessions[0];
+  const todaysPlan = plans.find((p) => p.date === today);
+
+  const handleStart = () => {
+    if (draft) {
+      router.push("/workout");
+      return;
+    }
+    if (todaysPlan) {
+      if (todaysPlan.programId) startProgram(todaysPlan.programId);
+      else startDraft({ title: todaysPlan.title, color: todaysPlan.color });
+      removePlan(todaysPlan.id);
+    } else {
+      startDraft();
+    }
+    router.push("/workout");
+  };
 
   return (
     <div className="max-w-md mx-auto px-4 pt-[calc(20px+env(safe-area-inset-top))] pb-6">
@@ -74,16 +90,20 @@ export default function TodayPage() {
       <div className="rounded-3xl p-5 mb-5" style={{ background: "var(--accent)" }}>
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px] font-bold uppercase tracking-wide text-black/60">
-            {draft ? "Тренировка в процессе" : "Сегодня"}
+            {draft ? "Тренировка в процессе" : todaysPlan ? "Запланировано на сегодня" : "Сегодня"}
           </span>
         </div>
-        <p className="text-2xl font-black text-black mb-4">
-          {draft ? draft.title : "Нет плана — начни тренировку"}
+        <p className="text-2xl font-black text-black mb-4 flex items-center gap-2">
+          {(draft || todaysPlan) && (
+            <span
+              className="w-2.5 h-2.5 rounded-full shrink-0"
+              style={{ background: draft ? draft.color : todaysPlan!.color }}
+            />
+          )}
+          {draft ? draft.title : todaysPlan ? todaysPlan.title : "Нет плана — начни тренировку"}
         </p>
         <button
-          onClick={() => {
-            router.push("/workout");
-          }}
+          onClick={handleStart}
           className="w-full h-12 rounded-2xl bg-black text-white font-bold flex items-center justify-center gap-2"
         >
           {draft ? "Продолжить" : "Начать тренировку"} <ArrowRight size={18} />

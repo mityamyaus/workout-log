@@ -1,89 +1,22 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Plus, Trash2, Check, ListChecks, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Plus, Trash2, Check } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/exercises";
 import ExercisePicker from "@/components/ExercisePicker";
-import type { SetLog } from "@/lib/types";
 
 export default function WorkoutPage() {
-  const { draft, programs, ready, startDraft, discardDraft, finishDraft } = useStore();
+  const router = useRouter();
+  const { draft, ready, discardDraft, finishDraft } = useStore();
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  if (!ready) return null;
+  useEffect(() => {
+    if (ready && !draft) router.replace("/programs");
+  }, [ready, draft, router]);
 
-  if (!draft) {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-[calc(20px+env(safe-area-inset-top))] pb-6">
-        <div className="flex flex-col items-center text-center py-8">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-            style={{ background: "var(--accent)" }}
-          >
-            <Plus size={28} color="var(--accent-foreground)" />
-          </div>
-          <h1 className="text-2xl font-black mb-1">Начать тренировку</h1>
-          <p className="text-sm text-muted mb-6 max-w-xs">
-            С нуля или по сохранённой программе — добавляй подходы и фиксируй вес и повторения
-          </p>
-          <button
-            onClick={() => startDraft()}
-            className="h-12 px-8 rounded-2xl font-bold"
-            style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
-          >
-            Начать с нуля
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Мои программы</span>
-          <Link href="/programs" className="text-[11px] font-bold flex items-center gap-0.5" style={{ color: "var(--accent)" }}>
-            Управлять <ChevronRight size={12} />
-          </Link>
-        </div>
-
-        {programs.length === 0 ? (
-          <Link
-            href="/programs/new"
-            className="rounded-3xl bg-surface border-2 border-dashed border-border p-4 flex items-center justify-center gap-2 text-sm font-bold text-muted"
-          >
-            <Plus size={16} /> Создать программу
-          </Link>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {programs.map((p) => (
-              <button
-                key={p.id}
-                onClick={() =>
-                  startDraft({
-                    title: p.name,
-                    programId: p.id,
-                    color: p.color,
-                    exercises: p.exercises.map((pe) => ({
-                      exerciseId: pe.exerciseId,
-                      name: pe.name,
-                      category: pe.category,
-                      sets: Array.from({ length: pe.sets }, () => ({ weight: 0, reps: pe.reps, completed: false } as SetLog)),
-                    })),
-                  })
-                }
-                className="rounded-3xl bg-surface border border-border p-4 flex items-center gap-3 text-left"
-              >
-                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }} />
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold truncate">{p.name}</p>
-                  <p className="text-xs text-muted mt-0.5">{p.exercises.length} упражнений</p>
-                </div>
-                <ListChecks size={18} color="var(--muted)" />
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
+  if (!ready || !draft) return null;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-[calc(20px+env(safe-area-inset-top))] pb-6">
