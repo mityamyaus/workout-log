@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme";
 import { StoreProvider } from "@/lib/store";
+import { ProfileProvider } from "@/lib/profile";
 import BottomNav from "@/components/BottomNav";
 
 export const metadata: Metadata = {
@@ -39,10 +40,12 @@ export default function RootLayout({
     <html lang="ru" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
-          <StoreProvider>
-            <div className="flex-1 pb-[calc(84px+env(safe-area-inset-bottom))]">{children}</div>
-            <BottomNav />
-          </StoreProvider>
+          <ProfileProvider>
+            <StoreProvider>
+              <div className="flex-1 pb-[calc(84px+env(safe-area-inset-bottom))]">{children}</div>
+              <BottomNav />
+            </StoreProvider>
+          </ProfileProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useStore } from "@/lib/store";
+import { useProfile } from "@/lib/profile";
 import {
   computeStreak,
   muscleGroupTotals,
@@ -13,6 +14,7 @@ import { MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/exercises";
 
 export default function StatsPage() {
   const { sessions, ready } = useStore();
+  const { profile, ready: profileReady } = useProfile();
 
   const streak = ready ? computeStreak(sessions) : 0;
   const totalSessions = sessions.length;
@@ -24,8 +26,12 @@ export default function StatsPage() {
     [groupTotals]
   );
   const maxSets = topGroups[0]?.[1] ?? 1;
+  const weightSeries = useMemo(
+    () => profile.weightLog.slice(-12).map((e) => ({ label: e.date.slice(5), weight: e.weight })),
+    [profile.weightLog]
+  );
 
-  if (!ready) return null;
+  if (!ready || !profileReady) return null;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-[calc(20px+env(safe-area-inset-top))] pb-6">
@@ -35,6 +41,49 @@ export default function StatsPage() {
         <MiniStat label="Серия" value={streak} unit="дн." />
         <MiniStat label="Тренировок" value={totalSessions} unit="всего" />
         <MiniStat label="Общий объём" value={(totalVolume / 1000).toFixed(1)} unit="т" />
+      </div>
+
+      <div className="rounded-3xl bg-surface border border-border p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Вес, кг</p>
+          {profile.weight && (
+            <p className="text-lg font-black" style={{ color: "var(--accent)" }}>
+              {profile.weight} кг
+            </p>
+          )}
+        </div>
+        {weightSeries.length > 1 ? (
+          <div style={{ width: "100%", height: 140 }}>
+            <ResponsiveContainer>
+              <LineChart data={weightSeries} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: "var(--muted)" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis tick={{ fontSize: 10, fill: "var(--muted)" }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 12,
+                    fontSize: 12,
+                  }}
+                />
+                <Line type="monotone" dataKey="weight" stroke="var(--accent)" strokeWidth={3} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">
+            Добавь вес в{" "}
+            <a href="/profile" className="font-bold underline">
+              профиле
+            </a>
+            , чтобы видеть график
+          </p>
+        )}
       </div>
 
       <div className="rounded-3xl bg-surface border border-border p-4 mb-4">

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, ArrowRight, ChevronRight } from "lucide-react";
+import { Sun, Moon, ArrowRight, ChevronRight, User } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
+import { useProfile } from "@/lib/profile";
 import {
   computeStreak,
   currentWeekDates,
@@ -20,9 +21,10 @@ const WEEKLY_GOAL = 5;
 export default function TodayPage() {
   const { sessions, draft, ready } = useStore();
   const { theme, toggleTheme } = useTheme();
+  const { profile, ready: profileReady } = useProfile();
   const router = useRouter();
 
-  if (!ready) return null;
+  if (!ready || !profileReady) return null;
 
   const streak = computeStreak(sessions);
   const weekCount = sessionsThisWeek(sessions);
@@ -40,13 +42,26 @@ export default function TodayPage() {
           <br />
           за <span style={{ color: "var(--accent)" }}>работу.</span>
         </h1>
-        <button
-          onClick={toggleTheme}
-          className="mt-1 shrink-0 w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center"
-          aria-label="Переключить тему"
-        >
-          {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-        </button>
+        <div className="mt-1 flex items-center gap-2 shrink-0">
+          <button
+            onClick={toggleTheme}
+            className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center"
+            aria-label="Переключить тему"
+          >
+            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+          </button>
+          <Link
+            href="/profile"
+            className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center overflow-hidden"
+            aria-label="Профиль"
+          >
+            {profile.name ? (
+              <span className="text-sm font-black">{profile.name.charAt(0).toUpperCase()}</span>
+            ) : (
+              <User size={18} />
+            )}
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-5">
