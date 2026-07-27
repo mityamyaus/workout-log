@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/lib/theme";
 import { AuthProvider } from "@/lib/auth";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import ViewportHeightFix from "@/components/ViewportHeightFix";
 
 export const metadata: Metadata = {
   title: "Дневник тренировок",
@@ -36,10 +37,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className="h-dvh antialiased overflow-hidden" suppressHydrationWarning>
-      <body className="h-dvh flex flex-col overflow-hidden">
+    <html lang="ru" className="antialiased overflow-hidden" suppressHydrationWarning>
+      <body className="flex flex-col overflow-hidden">
         <ThemeProvider>
           <AuthProvider>
+            <ViewportHeightFix />
             <ServiceWorkerRegister />
             {children}
           </AuthProvider>
