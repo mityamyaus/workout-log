@@ -10,6 +10,7 @@ import {
   type MuscleGroup,
   type Equipment,
 } from "@/lib/exercises";
+import { useStore } from "@/lib/store";
 
 type GroupBy = "muscle" | "equipment";
 
@@ -24,15 +25,19 @@ export default function ExercisePicker({
   onSelect: (exercise: Exercise) => void;
   onClose: () => void;
 }) {
+  const { customExercises } = useStore();
   const [query, setQuery] = useState("");
   const [groupBy, setGroupBy] = useState<GroupBy>("muscle");
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const allExercises = useMemo(() => [...EXERCISES, ...customExercises], [customExercises]);
 
   const filtered = useMemo(() => {
-    if (!query) return EXERCISES;
+    if (!query) return allExercises;
     const q = query.toLowerCase();
-    return EXERCISES.filter((e) => e.name.toLowerCase().includes(q));
-  }, [query]);
+    return allExercises.filter((e) => e.name.toLowerCase().includes(q));
+  }, [query, allExercises]);
 
   const groups = useMemo(() => {
     const labels: Record<string, string> = groupBy === "muscle" ? MUSCLE_GROUP_LABELS : EQUIPMENT_LABELS;
@@ -85,6 +90,13 @@ export default function ExercisePicker({
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-6">
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="w-full rounded-2xl border-2 border-dashed border-border p-3.5 flex items-center justify-center gap-2 text-sm font-bold text-muted mb-3"
+          >
+            <Plus size={16} /> Своё упражнение
+          </button>
+
           <div className="flex flex-col gap-2">
             {groups.map((g) => {
               const open = query.length > 0 || openGroups.has(g.key);
@@ -121,6 +133,7 @@ export default function ExercisePicker({
                               <p className="font-bold text-sm truncate">{ex.name}</p>
                               <p className="text-[11px] text-muted font-semibold">
                                 {groupBy === "muscle" ? EQUIPMENT_LABELS[ex.equipment] : MUSCLE_GROUP_LABELS[ex.category]}
+                                {ex.id.startsWith("custom_") && " · своё"}
                               </p>
                             </div>
                             <div
@@ -140,6 +153,99 @@ export default function ExercisePicker({
             {groups.length === 0 && <p className="text-sm text-muted text-center py-8">Ничего не найдено</p>}
           </div>
         </div>
+      </div>
+
+      {createOpen && (
+        <CreateExerciseSheet
+          onClose={() => setCreateOpen(false)}
+          onCreated={(ex) => {
+            setCreateOpen(false);
+            onSelect(ex);
+            onClose();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateExerciseSheet({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (ex: Exercise) => void;
+}) {
+  const { addCustomExercise } = useStore();
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<MuscleGroup>("CHEST");
+  const [equipment, setEquipment] = useState<Equipment>("BARBELL");
+
+  const canSave = name.trim().length > 0;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40" onClick={onClose}>
+      <div
+        className="max-w-md w-full mx-auto rounded-t-[28px] bg-background p-5 pb-[calc(24px+env(safe-area-inset-bottom))] max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-xl font-black mb-4">Своё упражнение</h2>
+
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Название</p>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Например, Жим в блочном тренажёре"
+          className="w-full h-11 rounded-xl bg-surface-2 px-3.5 text-sm font-semibold outline-none mb-4"
+          autoFocus
+        />
+
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Группа мышц</p>
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {(Object.keys(MUSCLE_GROUP_LABELS) as MuscleGroup[]).map((g) => (
+            <button
+              key={g}
+              onClick={() => setCategory(g)}
+              className="h-8 px-3 rounded-full text-xs font-bold"
+              style={{
+                background: category === g ? "var(--accent)" : "var(--surface-2)",
+                color: category === g ? "var(--accent-foreground)" : "var(--muted)",
+              }}
+            >
+              {MUSCLE_GROUP_LABELS[g]}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Оборудование</p>
+        <div className="flex flex-wrap gap-1.5 mb-5">
+          {(Object.keys(EQUIPMENT_LABELS) as Equipment[]).map((eq) => (
+            <button
+              key={eq}
+              onClick={() => setEquipment(eq)}
+              className="h-8 px-3 rounded-full text-xs font-bold"
+              style={{
+                background: equipment === eq ? "var(--accent)" : "var(--surface-2)",
+                color: equipment === eq ? "var(--accent-foreground)" : "var(--muted)",
+              }}
+            >
+              {EQUIPMENT_LABELS[eq]}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => {
+            if (!canSave) return;
+            const ex = addCustomExercise(name.trim(), category, equipment);
+            onCreated(ex);
+          }}
+          disabled={!canSave}
+          className="w-full h-12 rounded-2xl font-bold disabled:opacity-40"
+          style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+        >
+          Добавить и выбрать
+        </button>
       </div>
     </div>
   );

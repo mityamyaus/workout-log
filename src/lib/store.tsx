@@ -10,11 +10,13 @@ import {
 } from "react";
 import type { DraftExercise, PlannedWorkout, Program, ProgramExercise, WorkoutSession } from "./types";
 import { DEFAULT_PROGRAM_COLOR } from "./colors";
+import type { Exercise, MuscleGroup, Equipment } from "./exercises";
 
 const SESSIONS_KEY = "wa_sessions_v1";
 const DRAFT_KEY = "wa_draft_v1";
 const PROGRAMS_KEY = "wa_programs_v1";
 const PLANS_KEY = "wa_plans_v1";
+const CUSTOM_EXERCISES_KEY = "wa_custom_exercises_v1";
 
 interface DraftSession {
   title: string;
@@ -35,6 +37,7 @@ interface Store {
   sessions: WorkoutSession[];
   programs: Program[];
   plans: PlannedWorkout[];
+  customExercises: Exercise[];
   ready: boolean;
   draft: DraftSession | null;
   startDraft: (options?: StartDraftOptions) => void;
@@ -51,6 +54,7 @@ interface Store {
   deleteProgram: (id: string) => void;
   addPlan: (date: string, programId: string | null, title: string, color: string) => void;
   removePlan: (id: string) => void;
+  addCustomExercise: (name: string, category: MuscleGroup, equipment: Equipment) => Exercise;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -72,6 +76,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [plans, setPlans] = useState<PlannedWorkout[]>([]);
+  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
   const [draft, setDraft] = useState<DraftSession | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -79,6 +84,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setSessions(load(SESSIONS_KEY, []));
     setPrograms(load(PROGRAMS_KEY, []));
     setPlans(load(PLANS_KEY, []));
+    setCustomExercises(load(CUSTOM_EXERCISES_KEY, []));
     setDraft(load(DRAFT_KEY, null));
     setReady(true);
   }, []);
@@ -97,6 +103,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!ready) return;
     localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
   }, [plans, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    localStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customExercises));
+  }, [customExercises, ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -266,11 +277,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setPlans((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
+  const addCustomExercise = useCallback((name: string, category: MuscleGroup, equipment: Equipment): Exercise => {
+    const exercise: Exercise = {
+      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      category,
+      equipment,
+    };
+    setCustomExercises((prev) => [...prev, exercise]);
+    return exercise;
+  }, []);
+
   const value = useMemo<Store>(
     () => ({
       sessions,
       programs,
       plans,
+      customExercises,
       ready,
       draft,
       startDraft,
@@ -287,11 +310,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deleteProgram,
       addPlan,
       removePlan,
+      addCustomExercise,
     }),
     [
       sessions,
       programs,
       plans,
+      customExercises,
       ready,
       draft,
       startDraft,
@@ -308,6 +333,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deleteProgram,
       addPlan,
       removePlan,
+      addCustomExercise,
     ]
   );
 

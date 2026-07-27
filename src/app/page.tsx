@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, ArrowRight, ChevronRight, User } from "lucide-react";
+import { Sun, Moon, ArrowRight, ChevronRight, User, CalendarPlus, CheckCircle2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 import { useProfile } from "@/lib/profile";
@@ -35,6 +35,7 @@ export default function TodayPage() {
   const sessionDays = new Set(sessions.map((s) => s.date));
   const lastSession = sessions[0];
   const todaysPlan = plans.find((p) => p.date === today);
+  const completedToday = sessionDays.has(today);
 
   const handleStart = () => {
     if (draft) {
@@ -45,10 +46,10 @@ export default function TodayPage() {
       if (todaysPlan.programId) startProgram(todaysPlan.programId);
       else startDraft({ title: todaysPlan.title, color: todaysPlan.color });
       removePlan(todaysPlan.id);
-    } else {
-      startDraft();
+      router.push("/workout");
+      return;
     }
-    router.push("/workout");
+    router.push("/calendar");
   };
 
   return (
@@ -100,14 +101,41 @@ export default function TodayPage() {
               style={{ background: draft ? draft.color : todaysPlan!.color }}
             />
           )}
-          {draft ? draft.title : todaysPlan ? todaysPlan.title : "Нет плана — начни тренировку"}
+          {draft
+            ? draft.title
+            : todaysPlan
+            ? todaysPlan.title
+            : completedToday
+            ? "Тренировка на сегодня пройдена"
+            : "На сегодня ничего не запланировано"}
         </p>
-        <button
-          onClick={handleStart}
-          className="w-full h-12 rounded-2xl bg-black text-white font-bold flex items-center justify-center gap-2"
-        >
-          {draft ? "Продолжить" : "Начать тренировку"} <ArrowRight size={18} />
-        </button>
+        {completedToday && !draft && !todaysPlan ? (
+          <Link
+            href="/history"
+            className="w-full h-12 rounded-2xl bg-black text-white font-bold flex items-center justify-center gap-2"
+          >
+            <CheckCircle2 size={18} /> Смотреть в истории
+          </Link>
+        ) : (
+          <button
+            onClick={handleStart}
+            className="w-full h-12 rounded-2xl bg-black text-white font-bold flex items-center justify-center gap-2"
+          >
+            {draft ? (
+              <>
+                Продолжить <ArrowRight size={18} />
+              </>
+            ) : todaysPlan ? (
+              <>
+                Начать тренировку <ArrowRight size={18} />
+              </>
+            ) : (
+              <>
+                Запланировать в календаре <CalendarPlus size={18} />
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="rounded-3xl bg-surface border border-border p-5 mb-5">

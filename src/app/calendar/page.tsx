@@ -135,13 +135,15 @@ export default function CalendarPage() {
 
       <div className="flex items-center justify-between mb-2">
         <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{selected}</p>
-        <button
-          onClick={() => setPlanOpen(true)}
-          className="text-[11px] font-bold flex items-center gap-1"
-          style={{ color: "var(--accent)" }}
-        >
-          <Plus size={13} /> Запланировать
-        </button>
+        {selectedSessions.length === 0 && (
+          <button
+            onClick={() => setPlanOpen(true)}
+            className="text-[11px] font-bold flex items-center gap-1"
+            style={{ color: "var(--accent)" }}
+          >
+            <Plus size={13} /> Запланировать
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -149,6 +151,9 @@ export default function CalendarPage() {
           <div className="rounded-3xl bg-surface border border-border p-4 text-sm text-muted">
             Тренировок в этот день нет
           </div>
+        )}
+        {selectedSessions.length > 0 && (
+          <p className="text-xs text-muted px-1 -mt-1 mb-1">Тренировка на этот день уже пройдена</p>
         )}
         {selectedSessions.map((s) => (
           <Link
