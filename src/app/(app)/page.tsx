@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
 import { DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
+import { getTodaysPhrase } from "@/lib/motivationalPhrases";
 import {
   computeStreak,
   currentWeekDates,
@@ -36,6 +37,7 @@ export default function TodayPage() {
   const lastSession = sessions[0];
   const todaysPlan = plans.find((p) => p.date === today);
   const completedToday = sessionDays.has(today);
+  const phrase = getTodaysPhrase();
 
   const handleStart = () => {
     if (draft) {
@@ -56,9 +58,10 @@ export default function TodayPage() {
     <div className="max-w-md mx-auto px-4 pt-[calc(20px+env(safe-area-inset-top))] pb-6">
       <div className="flex items-start justify-between mb-5">
         <h1 className="text-[34px] leading-[1.05] font-black tracking-tight uppercase">
-          Давай
+          {phrase.line1}
           <br />
-          за <span style={{ color: "var(--accent)" }}>работу.</span>
+          {phrase.line2Prefix}
+          <span style={{ color: "var(--accent)" }}>{phrase.line2Accent}</span>
         </h1>
         <div className="mt-1 flex items-center gap-2 shrink-0">
           <button

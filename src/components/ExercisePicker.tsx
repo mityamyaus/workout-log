@@ -1,18 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Check, Plus, Search, X } from "lucide-react";
+import { ChevronDown, Check, Plus, Search, X, Info } from "lucide-react";
 import {
   EXERCISES,
   MUSCLE_GROUP_LABELS,
   EQUIPMENT_LABELS,
+  BODY_PART_LABELS,
+  MUSCLE_TO_BODY_PART,
   type Exercise,
   type MuscleGroup,
   type Equipment,
 } from "@/lib/exercises";
 import { useStore } from "@/lib/store";
 
-type GroupBy = "muscle" | "equipment";
+type GroupBy = "muscle" | "bodyPart" | "equipment";
 
 export default function ExercisePicker({
   title = "Упражнения",
@@ -27,9 +29,10 @@ export default function ExercisePicker({
 }) {
   const { customExercises } = useStore();
   const [query, setQuery] = useState("");
-  const [groupBy, setGroupBy] = useState<GroupBy>("muscle");
+  const [groupBy, setGroupBy] = useState<GroupBy>("bodyPart");
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
+  const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
 
   const customIds = useMemo(() => new Set(customExercises.map((e) => e.id)), [customExercises]);
   const allExercises = useMemo(() => [...EXERCISES, ...customExercises], [customExercises]);
@@ -40,11 +43,18 @@ export default function ExercisePicker({
     return allExercises.filter((e) => e.name.toLowerCase().includes(q));
   }, [query, allExercises]);
 
+  const groupKeyOf = (ex: Exercise) =>
+    groupBy === "muscle" ? ex.category : groupBy === "bodyPart" ? MUSCLE_TO_BODY_PART[ex.category] : ex.equipment;
+
+  const secondaryLabelOf = (ex: Exercise) =>
+    groupBy === "equipment" ? MUSCLE_GROUP_LABELS[ex.category] : EQUIPMENT_LABELS[ex.equipment];
+
   const groups = useMemo(() => {
-    const labels: Record<string, string> = groupBy === "muscle" ? MUSCLE_GROUP_LABELS : EQUIPMENT_LABELS;
+    const labels: Record<string, string> =
+      groupBy === "muscle" ? MUSCLE_GROUP_LABELS : groupBy === "bodyPart" ? BODY_PART_LABELS : EQUIPMENT_LABELS;
     const map = new Map<string, Exercise[]>();
     for (const ex of filtered) {
-      const key = groupBy === "muscle" ? ex.category : ex.equipment;
+      const key = groupKeyOf(ex);
       const arr = map.get(key) ?? [];
       arr.push(ex);
       map.set(key, arr);
@@ -52,6 +62,7 @@ export default function ExercisePicker({
     return Array.from(map.entries())
       .map(([key, items]) => ({ key, label: labels[key], items }))
       .sort((a, b) => a.label.localeCompare(b.label, "ru"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, groupBy]);
 
   const toggleGroup = (key: string) => {
@@ -85,9 +96,10 @@ export default function ExercisePicker({
           </div>
         </div>
 
-        <div className="flex gap-2 px-4 pb-3 shrink-0">
-          <SegButton active={groupBy === "muscle"} onClick={() => setGroupBy("muscle")} label="По группам мышц" />
-          <SegButton active={groupBy === "equipment"} onClick={() => setGroupBy("equipment")} label="По оборудованию" />
+        <div className="flex gap-1.5 px-4 pb-3 shrink-0">
+          <SegButton active={groupBy === "bodyPart"} onClick={() => setGroupBy("bodyPart")} label="Части тела" />
+          <SegButton active={groupBy === "muscle"} onClick={() => setGroupBy("muscle")} label="Мышцы" />
+          <SegButton active={groupBy === "equipment"} onClick={() => setGroupBy("equipment")} label="Инвентарь" />
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-6">
@@ -121,29 +133,36 @@ export default function ExercisePicker({
                       {g.items.map((ex) => {
                         const added = excludeIds.has(ex.id);
                         return (
-                          <button
+                          <div
                             key={ex.id}
-                            disabled={added}
-                            onClick={() => {
-                              onSelect(ex);
-                              onClose();
-                            }}
-                            className="rounded-xl bg-surface-2 p-3 flex items-center justify-between text-left disabled:opacity-40"
+                            className="rounded-xl bg-surface-2 p-3 flex items-center gap-2"
                           >
-                            <div className="min-w-0">
-                              <p className="font-bold text-sm truncate">{ex.name}</p>
-                              <p className="text-[11px] text-muted font-semibold">
-                                {groupBy === "muscle" ? EQUIPMENT_LABELS[ex.equipment] : MUSCLE_GROUP_LABELS[ex.category]}
-                                {customIds.has(ex.id) && " · своё"}
-                              </p>
-                            </div>
-                            <div
-                              className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 ml-2"
+                            <button
+                              onClick={() => setDetailExercise(ex)}
+                              className="flex-1 min-w-0 text-left flex items-center gap-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm truncate">{ex.name}</p>
+                                <p className="text-[11px] text-muted font-semibold">
+                                  {secondaryLabelOf(ex)}
+                                  {customIds.has(ex.id) && " · своё"}
+                                </p>
+                              </div>
+                              <Info size={13} color="var(--muted)" className="shrink-0" />
+                            </button>
+                            <button
+                              disabled={added}
+                              onClick={() => {
+                                onSelect(ex);
+                                onClose();
+                              }}
+                              className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40"
                               style={{ background: added ? "var(--surface)" : "var(--accent)" }}
+                              aria-label="Добавить"
                             >
                               {added ? <Check size={12} /> : <Plus size={12} color="var(--accent-foreground)" />}
-                            </div>
-                          </button>
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -166,6 +185,64 @@ export default function ExercisePicker({
           }}
         />
       )}
+
+      {detailExercise && (
+        <ExerciseDetailSheet
+          exercise={detailExercise}
+          added={excludeIds.has(detailExercise.id)}
+          onClose={() => setDetailExercise(null)}
+          onAdd={() => {
+            onSelect(detailExercise);
+            setDetailExercise(null);
+            onClose();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ExerciseDetailSheet({
+  exercise,
+  added,
+  onClose,
+  onAdd,
+}: {
+  exercise: Exercise;
+  added: boolean;
+  onClose: () => void;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40" onClick={onClose}>
+      <div
+        className="max-w-md w-full mx-auto rounded-t-[28px] bg-background p-5 pb-[calc(24px+env(safe-area-inset-bottom))] max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-1">
+          <h2 className="text-xl font-black pr-3">{exercise.name}</h2>
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center shrink-0">
+            <X size={18} />
+          </button>
+        </div>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-4">
+          {MUSCLE_GROUP_LABELS[exercise.category]} · {EQUIPMENT_LABELS[exercise.equipment]}
+        </p>
+
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">Как выполнять</p>
+        <p className="text-sm leading-relaxed mb-5">
+          {exercise.description ?? "Описание для этого упражнения ещё не добавлено."}
+        </p>
+
+        <button
+          onClick={onAdd}
+          disabled={added}
+          className="w-full h-12 rounded-2xl font-bold disabled:opacity-40"
+          style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+        >
+          {added ? "Уже добавлено" : "Добавить упражнение"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -262,7 +339,7 @@ function SegButton({ active, onClick, label }: { active: boolean; onClick: () =>
   return (
     <button
       onClick={onClick}
-      className="flex-1 h-9 rounded-xl text-xs font-bold"
+      className="flex-1 h-9 rounded-xl text-[11px] font-bold px-1"
       style={{
         background: active ? "var(--accent)" : "var(--surface-2)",
         color: active ? "var(--accent-foreground)" : "var(--muted)",
