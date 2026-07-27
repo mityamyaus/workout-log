@@ -1,0 +1,98 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters", "multiSchema"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["workout_app"]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String   @default("")
+  age          Int?
+  weight       Float?
+  weightLog    Json     @default("[]")
+  createdAt    DateTime @default(now())
+
+  authSessions    AuthSession[]
+  workoutSessions WorkoutSession[]
+  programs        Program[]
+  plannedWorkouts PlannedWorkout[]
+  customExercises CustomExercise[]
+
+  @@schema("workout_app")
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@schema("workout_app")
+}
+
+model WorkoutSession {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       String
+  title      String
+  startedAt  DateTime
+  finishedAt DateTime?
+  programId  String?
+  color      String
+  exercises  Json
+  createdAt  DateTime @default(now())
+
+  @@index([userId, date])
+  @@schema("workout_app")
+}
+
+model Program {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String
+  exercises Json
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@schema("workout_app")
+}
+
+model PlannedWorkout {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String
+  programId String?
+  title     String
+  color     String
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+  @@schema("workout_app")
+}
+
+model CustomExercise {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  category  String
+  equipment String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@schema("workout_app")
+}

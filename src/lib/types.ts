@@ -52,3 +52,8 @@ export interface PlannedWorkout {
   title: string;
   color: string;
 }
+
+export interface WeightEntry {
+  date: string; // YYYY-MM-DD
+  weight: number;
+}

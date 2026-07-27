@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sun, Moon, ArrowRight, ChevronRight, User, CalendarPlus, CheckCircle2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
-import { useProfile } from "@/lib/profile";
+import { useAuth } from "@/lib/auth";
 import { DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
 import {
   computeStreak,
@@ -22,10 +22,10 @@ const WEEKLY_GOAL = 5;
 export default function TodayPage() {
   const { sessions, plans, draft, ready, startDraft, startProgram, removePlan } = useStore();
   const { theme, toggleTheme } = useTheme();
-  const { profile, ready: profileReady } = useProfile();
+  const { user } = useAuth();
   const router = useRouter();
 
-  if (!ready || !profileReady) return null;
+  if (!ready || !user) return null;
 
   const streak = computeStreak(sessions);
   const weekCount = sessionsThisWeek(sessions);
@@ -73,8 +73,8 @@ export default function TodayPage() {
             className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center overflow-hidden"
             aria-label="Профиль"
           >
-            {profile.name ? (
-              <span className="text-sm font-black">{profile.name.charAt(0).toUpperCase()}</span>
+            {user.name ? (
+              <span className="text-sm font-black">{user.name.charAt(0).toUpperCase()}</span>
             ) : (
               <User size={18} />
             )}

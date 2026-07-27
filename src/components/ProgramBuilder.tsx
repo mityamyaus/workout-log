@@ -27,18 +27,24 @@ export default function ProgramBuilder({ existing }: { existing?: Program }) {
     setExercises((prev) => prev.filter((e) => e.exerciseId !== exerciseId));
   };
 
-  const canSave = name.trim().length > 0 && exercises.length > 0;
+  const [saving, setSaving] = useState(false);
+  const canSave = name.trim().length > 0 && exercises.length > 0 && !saving;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!canSave) return;
-    saveProgram({ id: existing?.id, name: name.trim(), color, exercises });
-    router.push("/programs");
+    setSaving(true);
+    try {
+      await saveProgram({ id: existing?.id, name: name.trim(), color, exercises });
+      router.push("/programs");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!existing) return;
     if (confirm("Удалить программу?")) {
-      deleteProgram(existing.id);
+      await deleteProgram(existing.id);
       router.push("/programs");
     }
   };
@@ -127,7 +133,7 @@ export default function ProgramBuilder({ existing }: { existing?: Program }) {
         className="w-full h-14 rounded-2xl font-black text-lg disabled:opacity-40 mb-3"
         style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
       >
-        Сохранить программу
+        {saving ? "Сохраняем…" : "Сохранить программу"}
       </button>
 
       {existing && (

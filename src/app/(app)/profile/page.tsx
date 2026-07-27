@@ -2,32 +2,45 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronLeft, User } from "lucide-react";
-import { useProfile } from "@/lib/profile";
+import { ChevronLeft, LogOut, User } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { profile, ready, updateProfile, logWeight } = useProfile();
-  const [name, setName] = useState(profile.name);
-  const [age, setAge] = useState(profile.age?.toString() ?? "");
-  const [weight, setWeight] = useState(profile.weight?.toString() ?? "");
+  const { user, ready, updateProfile, logWeight, logout } = useAuth();
+  const [name, setName] = useState(user?.name ?? "");
+  const [age, setAge] = useState(user?.age?.toString() ?? "");
+  const [weight, setWeight] = useState(user?.weight?.toString() ?? "");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!ready) return;
-    setName(profile.name);
-    setAge(profile.age?.toString() ?? "");
-    setWeight(profile.weight?.toString() ?? "");
+    if (!ready || !user) return;
+    setName(user.name);
+    setAge(user.age?.toString() ?? "");
+    setWeight(user.weight?.toString() ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
+  }, [ready, user?.id]);
 
-  if (!ready) return null;
+  if (!ready || !user) return null;
 
-  const handleSave = () => {
-    updateProfile({ name, age: age ? Number(age) : null });
-    if (weight) logWeight(Number(weight));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateProfile({ name, age: age ? Number(age) : null });
+      if (weight) await logWeight(Number(weight));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (confirm("Выйти из аккаунта?")) {
+      await logout();
+      router.replace("/login");
+    }
   };
 
   return (
@@ -49,7 +62,8 @@ export default function ProfilePage() {
         >
           <User size={32} color="var(--accent-foreground)" />
         </div>
-        <p className="font-bold text-lg">{profile.name || "Без имени"}</p>
+        <p className="font-bold text-lg">{user.name || "Без имени"}</p>
+        <p className="text-xs text-muted mt-0.5">{user.email}</p>
       </div>
 
       <div className="rounded-3xl bg-surface border border-border p-5 flex flex-col gap-4 mb-5">
@@ -85,17 +99,18 @@ export default function ProfilePage() {
 
       <button
         onClick={handleSave}
-        className="w-full h-12 rounded-2xl font-bold"
+        disabled={saving}
+        className="w-full h-12 rounded-2xl font-bold disabled:opacity-40"
         style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
       >
-        {saved ? "Сохранено ✓" : "Сохранить"}
+        {saving ? "Сохраняем…" : saved ? "Сохранено ✓" : "Сохранить"}
       </button>
 
-      {profile.weightLog.length > 0 && (
+      {user.weightLog.length > 0 && (
         <div className="mt-5">
           <p className="text-[11px] font-bold uppercase tracking-wide text-muted mb-2">История веса</p>
           <div className="rounded-3xl bg-surface border border-border p-4 flex flex-col gap-2">
-            {[...profile.weightLog]
+            {[...user.weightLog]
               .slice(-10)
               .reverse()
               .map((e) => (
@@ -107,6 +122,13 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      <button
+        onClick={handleLogout}
+        className="w-full h-11 rounded-2xl font-bold text-sm text-danger flex items-center justify-center gap-2 mt-6"
+      >
+        <LogOut size={16} /> Выйти из аккаунта
+      </button>
     </div>
   );
 }

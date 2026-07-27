@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useStore } from "@/lib/store";
-import { useProfile } from "@/lib/profile";
+import { useAuth } from "@/lib/auth";
 import {
   computeStreak,
   muscleGroupTotals,
@@ -14,7 +14,7 @@ import { MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/exercises";
 
 export default function StatsPage() {
   const { sessions, ready } = useStore();
-  const { profile, ready: profileReady } = useProfile();
+  const { user, ready: authReady } = useAuth();
 
   const streak = ready ? computeStreak(sessions) : 0;
   const totalSessions = sessions.length;
@@ -27,11 +27,11 @@ export default function StatsPage() {
   );
   const maxSets = topGroups[0]?.[1] ?? 1;
   const weightSeries = useMemo(
-    () => profile.weightLog.slice(-12).map((e) => ({ label: e.date.slice(5), weight: e.weight })),
-    [profile.weightLog]
+    () => (user?.weightLog ?? []).slice(-12).map((e) => ({ label: e.date.slice(5), weight: e.weight })),
+    [user?.weightLog]
   );
 
-  if (!ready || !profileReady) return null;
+  if (!ready || !authReady || !user) return null;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-[calc(20px+env(safe-area-inset-top))] pb-6">
@@ -46,9 +46,9 @@ export default function StatsPage() {
       <div className="rounded-3xl bg-surface border border-border p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Вес, кг</p>
-          {profile.weight && (
+          {user.weight && (
             <p className="text-lg font-black" style={{ color: "var(--accent)" }}>
-              {profile.weight} кг
+              {user.weight} кг
             </p>
           )}
         </div>

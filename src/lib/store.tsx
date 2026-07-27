@@ -11,12 +11,10 @@ import {
 import type { DraftExercise, PlannedWorkout, Program, ProgramExercise, WorkoutSession } from "./types";
 import { DEFAULT_PROGRAM_COLOR } from "./colors";
 import type { Exercise, MuscleGroup, Equipment } from "./exercises";
+import { api } from "./api";
+import { useAuth } from "./auth";
 
-const SESSIONS_KEY = "wa_sessions_v1";
 const DRAFT_KEY = "wa_draft_v1";
-const PROGRAMS_KEY = "wa_programs_v1";
-const PLANS_KEY = "wa_plans_v1";
-const CUSTOM_EXERCISES_KEY = "wa_custom_exercises_v1";
 
 interface DraftSession {
   title: string;
@@ -48,13 +46,13 @@ interface Store {
   addSet: (exerciseId: string) => void;
   updateSet: (exerciseId: string, index: number, patch: Partial<{ weight: number; reps: number; completed: boolean }>) => void;
   removeSet: (exerciseId: string, index: number) => void;
-  finishDraft: () => void;
-  deleteSession: (id: string) => void;
-  saveProgram: (program: { id?: string; name: string; color: string; exercises: ProgramExercise[] }) => void;
-  deleteProgram: (id: string) => void;
-  addPlan: (date: string, programId: string | null, title: string, color: string) => void;
-  removePlan: (id: string) => void;
-  addCustomExercise: (name: string, category: MuscleGroup, equipment: Equipment) => Exercise;
+  finishDraft: () => Promise<void>;
+  deleteSession: (id: string) => Promise<void>;
+  saveProgram: (program: { id?: string; name: string; color: string; exercises: ProgramExercise[] }) => Promise<void>;
+  deleteProgram: (id: string) => Promise<void>;
+  addPlan: (date: string, programId: string | null, title: string, color: string) => Promise<void>;
+  removePlan: (id: string) => Promise<void>;
+  addCustomExercise: (name: string, category: MuscleGroup, equipment: Equipment) => Promise<Exercise>;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -63,16 +61,8 @@ function todayStr(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
-function load<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 export function StoreProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [plans, setPlans] = useState<PlannedWorkout[]>([]);
@@ -81,39 +71,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setSessions(load(SESSIONS_KEY, []));
-    setPrograms(load(PROGRAMS_KEY, []));
-    setPlans(load(PLANS_KEY, []));
-    setCustomExercises(load(CUSTOM_EXERCISES_KEY, []));
-    setDraft(load(DRAFT_KEY, null));
-    setReady(true);
+    try {
+      const d = localStorage.getItem(DRAFT_KEY);
+      if (d) setDraft(JSON.parse(d));
+    } catch {}
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-  }, [sessions, ready]);
-
-  useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem(PROGRAMS_KEY, JSON.stringify(programs));
-  }, [programs, ready]);
-
-  useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
-  }, [plans, ready]);
-
-  useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customExercises));
-  }, [customExercises, ready]);
-
-  useEffect(() => {
-    if (!ready) return;
     if (draft) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     else localStorage.removeItem(DRAFT_KEY);
-  }, [draft, ready]);
+  }, [draft]);
+
+  useEffect(() => {
+    if (!user) {
+      setSessions([]);
+      setPrograms([]);
+      setPlans([]);
+      setCustomExercises([]);
+      setReady(true);
+      return;
+    }
+    setReady(false);
+    api
+      .get<{ sessions: WorkoutSession[]; programs: Program[]; plans: PlannedWorkout[]; customExercises: Exercise[] }>(
+        "/api/bootstrap"
+      )
+      .then(({ sessions: s, programs: p, plans: pl, customExercises: ce }) => {
+        setSessions(s);
+        setPrograms(p);
+        setPlans(pl);
+        setCustomExercises(ce);
+      })
+      .finally(() => setReady(true));
+  }, [user]);
 
   const startDraft = useCallback((options?: StartDraftOptions) => {
     setDraft({
@@ -217,15 +207,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const finishDraft = useCallback(() => {
+  const finishDraft = useCallback(async () => {
     if (!draft) return;
     const exercises = draft.exercises.filter((e) => e.sets.length > 0);
     if (exercises.length === 0) {
       setDraft(null);
       return;
     }
-    const session: WorkoutSession = {
-      id: `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    const session = await api.post<WorkoutSession>("/api/workouts", {
       date: todayStr(),
       title: draft.title || "Тренировка",
       startedAt: draft.startedAt,
@@ -233,60 +222,50 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       exercises,
       programId: draft.programId,
       color: draft.color,
-    };
-    setSessions((sPrev) => [session, ...sPrev]);
+    });
+    setSessions((prev) => [session, ...prev]);
     setDraft(null);
   }, [draft]);
 
-  const deleteSession = useCallback((id: string) => {
+  const deleteSession = useCallback(async (id: string) => {
     setSessions((prev) => prev.filter((s) => s.id !== id));
+    await api.delete(`/api/workouts/${id}`);
   }, []);
 
   const saveProgram = useCallback(
-    (program: { id?: string; name: string; color: string; exercises: ProgramExercise[] }) => {
-      setPrograms((prev) => {
-        if (program.id) {
-          return prev.map((p) => (p.id === program.id ? { ...p, ...program, id: program.id } : p));
-        }
-        const created: Program = {
-          id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          name: program.name,
-          color: program.color,
-          exercises: program.exercises,
-          createdAt: Date.now(),
-        };
-        return [...prev, created];
-      });
+    async (program: { id?: string; name: string; color: string; exercises: ProgramExercise[] }) => {
+      const saved = await api.post<Program>("/api/programs", program);
+      setPrograms((prev) =>
+        program.id ? prev.map((p) => (p.id === saved.id ? saved : p)) : [...prev, saved]
+      );
     },
     []
   );
 
-  const deleteProgram = useCallback((id: string) => {
+  const deleteProgram = useCallback(async (id: string) => {
     setPrograms((prev) => prev.filter((p) => p.id !== id));
     setPlans((prev) => prev.filter((p) => p.programId !== id));
+    await api.delete(`/api/programs/${id}`);
   }, []);
 
-  const addPlan = useCallback((date: string, programId: string | null, title: string, color: string) => {
-    setPlans((prev) => [
-      ...prev,
-      { id: `pl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, date, programId, title, color },
-    ]);
+  const addPlan = useCallback(async (date: string, programId: string | null, title: string, color: string) => {
+    const plan = await api.post<PlannedWorkout>("/api/plans", { date, programId, title, color });
+    setPlans((prev) => [...prev, plan]);
   }, []);
 
-  const removePlan = useCallback((id: string) => {
+  const removePlan = useCallback(async (id: string) => {
     setPlans((prev) => prev.filter((p) => p.id !== id));
+    await api.delete(`/api/plans/${id}`);
   }, []);
 
-  const addCustomExercise = useCallback((name: string, category: MuscleGroup, equipment: Equipment): Exercise => {
-    const exercise: Exercise = {
-      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      name,
-      category,
-      equipment,
-    };
-    setCustomExercises((prev) => [...prev, exercise]);
-    return exercise;
-  }, []);
+  const addCustomExercise = useCallback(
+    async (name: string, category: MuscleGroup, equipment: Equipment): Promise<Exercise> => {
+      const exercise = await api.post<Exercise>("/api/custom-exercises", { name, category, equipment });
+      setCustomExercises((prev) => [...prev, exercise]);
+      return exercise;
+    },
+    []
+  );
 
   const value = useMemo<Store>(
     () => ({

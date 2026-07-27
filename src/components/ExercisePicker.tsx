@@ -31,6 +31,7 @@ export default function ExercisePicker({
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
 
+  const customIds = useMemo(() => new Set(customExercises.map((e) => e.id)), [customExercises]);
   const allExercises = useMemo(() => [...EXERCISES, ...customExercises], [customExercises]);
 
   const filtered = useMemo(() => {
@@ -133,7 +134,7 @@ export default function ExercisePicker({
                               <p className="font-bold text-sm truncate">{ex.name}</p>
                               <p className="text-[11px] text-muted font-semibold">
                                 {groupBy === "muscle" ? EQUIPMENT_LABELS[ex.equipment] : MUSCLE_GROUP_LABELS[ex.category]}
-                                {ex.id.startsWith("custom_") && " · своё"}
+                                {customIds.has(ex.id) && " · своё"}
                               </p>
                             </div>
                             <div
@@ -180,8 +181,9 @@ function CreateExerciseSheet({
   const [name, setName] = useState("");
   const [category, setCategory] = useState<MuscleGroup>("CHEST");
   const [equipment, setEquipment] = useState<Equipment>("BARBELL");
+  const [saving, setSaving] = useState(false);
 
-  const canSave = name.trim().length > 0;
+  const canSave = name.trim().length > 0 && !saving;
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40" onClick={onClose}>
@@ -235,16 +237,21 @@ function CreateExerciseSheet({
         </div>
 
         <button
-          onClick={() => {
+          onClick={async () => {
             if (!canSave) return;
-            const ex = addCustomExercise(name.trim(), category, equipment);
-            onCreated(ex);
+            setSaving(true);
+            try {
+              const ex = await addCustomExercise(name.trim(), category, equipment);
+              onCreated(ex);
+            } finally {
+              setSaving(false);
+            }
           }}
           disabled={!canSave}
           className="w-full h-12 rounded-2xl font-bold disabled:opacity-40"
           style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
         >
-          Добавить и выбрать
+          {saving ? "Добавляем…" : "Добавить и выбрать"}
         </button>
       </div>
     </div>

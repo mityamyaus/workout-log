@@ -1,9 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme";
-import { StoreProvider } from "@/lib/store";
-import { ProfileProvider } from "@/lib/profile";
-import BottomNav from "@/components/BottomNav";
+import { AuthProvider } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Дневник тренировок",
@@ -40,12 +38,7 @@ export default function RootLayout({
     <html lang="ru" className="h-dvh antialiased overflow-hidden" suppressHydrationWarning>
       <body className="h-dvh flex flex-col overflow-hidden">
         <ThemeProvider>
-          <ProfileProvider>
-            <StoreProvider>
-              <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain">{children}</main>
-              <BottomNav />
-            </StoreProvider>
-          </ProfileProvider>
+          <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
       </body>
     </html>
