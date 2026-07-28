@@ -1,8 +1,7 @@
 import type { WorkoutSession } from "./types";
+import { todayStr } from "./date";
 
-export function todayStr(d = new Date()) {
-  return d.toISOString().slice(0, 10);
-}
+export { todayStr };
 
 export function sessionVolume(s: WorkoutSession): number {
   let v = 0;

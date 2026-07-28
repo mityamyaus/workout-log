@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api, NetworkError } from "./api";
 import { loadQueue, saveQueue, newOpId } from "./offlineQueue";
+import { todayStr } from "./date";
 
 export interface AuthUser {
   id: string;
@@ -47,10 +48,6 @@ function loadCachedUser(): AuthUser | null {
 function cacheUser(user: AuthUser | null) {
   if (user) localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(user));
   else localStorage.removeItem(AUTH_CACHE_KEY);
-}
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

@@ -15,6 +15,7 @@ import type { Exercise, MuscleGroup, Equipment } from "./exercises";
 import { api, NetworkError } from "./api";
 import { useAuth } from "./auth";
 import { loadQueue, saveQueue, newOpId, newTempId, isTempId, resolveId, type QueueOp } from "./offlineQueue";
+import { todayStr } from "./date";
 
 const DRAFT_KEY = "wa_draft_v1";
 const CACHE_KEY = "wa_data_cache_v1";
@@ -86,10 +87,6 @@ interface Store {
 }
 
 const StoreContext = createContext<Store | null>(null);
-
-function todayStr(d = new Date()) {
-  return d.toISOString().slice(0, 10);
-}
 
 /** Computed in the device's local timezone so the server only ever deals with an absolute instant. */
 function computeRemindAt(date: string, time: string | null, reminderMinutesBefore: number | null): number | null {

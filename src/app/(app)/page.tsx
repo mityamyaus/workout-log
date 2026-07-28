@@ -20,6 +20,13 @@ import {
 const WEEKDAY_LABELS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 const WEEKLY_GOAL = 5;
 
+function formatPlanDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const weekday = WEEKDAY_LABELS[(date.getDay() + 6) % 7];
+  return `${weekday}, ${d}.${String(m).padStart(2, "0")}`;
+}
+
 export default function TodayPage() {
   const { sessions, plans, draft, ready, startDraft, startProgram, removePlan } = useStore();
   const { theme, toggleTheme } = useTheme();
@@ -38,6 +45,9 @@ export default function TodayPage() {
   const todaysPlan = plans.find((p) => p.date === today);
   const completedToday = sessionDays.has(today);
   const phrase = getTodaysPhrase();
+  const upcomingPlan = plans
+    .filter((p) => p.date > today)
+    .sort((a, b) => (a.date === b.date ? (a.time || "").localeCompare(b.time || "") : a.date.localeCompare(b.date)))[0];
 
   const handleStart = () => {
     if (draft) {
@@ -100,14 +110,16 @@ export default function TodayPage() {
               ? todaysPlan.time
                 ? `Запланировано на ${todaysPlan.time}`
                 : "Запланировано на сегодня"
+              : !completedToday && upcomingPlan
+              ? "Ближайшая тренировка"
               : "Сегодня"}
           </span>
         </div>
         <p className="text-2xl font-black text-black mb-4 flex items-center gap-2">
-          {(draft || todaysPlan) && (
+          {(draft || todaysPlan || (!completedToday && upcomingPlan)) && (
             <span
               className="w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ background: draft ? draft.color : todaysPlan!.color }}
+              style={{ background: draft ? draft.color : todaysPlan ? todaysPlan.color : upcomingPlan!.color }}
             />
           )}
           {draft
@@ -116,6 +128,8 @@ export default function TodayPage() {
             ? todaysPlan.title
             : completedToday
             ? "Тренировка на сегодня пройдена"
+            : upcomingPlan
+            ? `${upcomingPlan.title} — ${formatPlanDate(upcomingPlan.date)}${upcomingPlan.time ? `, ${upcomingPlan.time}` : ""}`
             : "На сегодня ничего не запланировано"}
         </p>
         {completedToday && !draft && !todaysPlan ? (
@@ -137,6 +151,10 @@ export default function TodayPage() {
             ) : todaysPlan ? (
               <>
                 Начать тренировку <ArrowRight size={18} />
+              </>
+            ) : upcomingPlan ? (
+              <>
+                Открыть календарь <ArrowRight size={18} />
               </>
             ) : (
               <>
