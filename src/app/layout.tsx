@@ -38,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className="antialiased overflow-hidden" suppressHydrationWarning>
+    <html lang="ru" className="antialiased" suppressHydrationWarning>
       <body className="flex flex-col overflow-hidden">
         <ThemeProvider>
           <AuthProvider>

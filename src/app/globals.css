@@ -46,7 +46,17 @@ body {
   height: var(--app-height);
 }
 
+html {
+  overflow-y: auto;
+  overscroll-behavior-y: none;
+}
+
 body {
+  /* 1px taller than html on purpose: gives the native scroller real (if
+     invisible) overflow to move through, so a programmatic scrollTo can
+     actually nudge iOS's stale fixed-position compositing state instead
+     of being a no-op on a page with nothing to scroll. */
+  min-height: calc(var(--app-height) + 1px);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Arial, sans-serif;
 }
 
