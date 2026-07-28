@@ -20,7 +20,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <StoreProvider>
       <SyncStatusBar />
-      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain">{children}</main>
+      <main
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+        style={{ paddingBottom: "var(--nav-height, 84px)" }}
+      >
+        {children}
+      </main>
       <BottomNav />
     </StoreProvider>
   );
