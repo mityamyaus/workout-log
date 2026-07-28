@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarDays, ListChecks, History, House, BarChart3 } from "lucide-react";
@@ -14,9 +15,24 @@ const items = [
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+
+    const setHeight = () => {
+      document.documentElement.style.setProperty("--nav-height", `${el.offsetHeight}px`);
+    };
+
+    setHeight();
+    const observer = new ResizeObserver(setHeight);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <nav className="shrink-0 z-40 px-3 pb-3 pt-1.5">
+    <nav ref={navRef} className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 pt-1.5">
       <div className="mx-auto max-w-md rounded-[24px] border border-border bg-surface/90 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] px-2 py-1.5 flex items-center justify-between">
         {items.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);

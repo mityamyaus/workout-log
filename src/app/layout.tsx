@@ -3,7 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/lib/theme";
 import { AuthProvider } from "@/lib/auth";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
-import ViewportDebugOverlay from "@/components/ViewportDebugOverlay";
+import ViewportHeightFix from "@/components/ViewportHeightFix";
 
 export const metadata: Metadata = {
   title: "Дневник тренировок",
@@ -41,8 +41,8 @@ export default function RootLayout({
       <body className="flex flex-col overflow-hidden">
         <ThemeProvider>
           <AuthProvider>
+            <ViewportHeightFix />
             <ServiceWorkerRegister />
-            <ViewportDebugOverlay />
             {children}
           </AuthProvider>
         </ThemeProvider>
