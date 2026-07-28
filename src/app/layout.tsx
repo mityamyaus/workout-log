@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { AuthProvider } from "@/lib/auth";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import ViewportHeightFix from "@/components/ViewportHeightFix";
+import ViewportDebugOverlay from "@/components/ViewportDebugOverlay";
 
 export const metadata: Metadata = {
   title: "Дневник тренировок",
@@ -43,6 +44,7 @@ export default function RootLayout({
           <AuthProvider>
             <ViewportHeightFix />
             <ServiceWorkerRegister />
+            <ViewportDebugOverlay />
             {children}
           </AuthProvider>
         </ThemeProvider>
