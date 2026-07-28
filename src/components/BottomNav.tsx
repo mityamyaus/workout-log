@@ -28,7 +28,36 @@ export default function BottomNav() {
     setHeight();
     const observer = new ResizeObserver(setHeight);
     observer.observe(el);
-    return () => observer.disconnect();
+
+    // iOS standalone PWAs sometimes paint a position:fixed element's
+    // compositing layer at a stale location on cold launch, even though its
+    // computed geometry (getBoundingClientRect) is already correct — only an
+    // actual device rotation forces WebKit to repaint that layer where it
+    // should be. Toggling a transform on the element itself forces the same
+    // layer teardown/rebuild without needing a real rotation.
+    const forceRepaint = () => {
+      const node = navRef.current;
+      if (!node) return;
+      node.style.transform = "translateZ(0.01px)";
+      void node.offsetHeight;
+      requestAnimationFrame(() => {
+        node.style.transform = "";
+      });
+    };
+    const t1 = setTimeout(forceRepaint, 150);
+    const t2 = setTimeout(forceRepaint, 600);
+    const t3 = setTimeout(forceRepaint, 1500);
+    document.addEventListener("visibilitychange", forceRepaint);
+    window.addEventListener("pageshow", forceRepaint);
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      document.removeEventListener("visibilitychange", forceRepaint);
+      window.removeEventListener("pageshow", forceRepaint);
+    };
   }, []);
 
   return (
