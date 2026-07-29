@@ -2,13 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronLeft, Info, Minus, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Info, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { PROGRAM_COLORS, DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
 import { EXERCISES, MUSCLE_GROUP_LABELS, type Exercise, type MuscleGroup } from "@/lib/exercises";
 import type { Program, ProgramExercise } from "@/lib/types";
 import ExercisePicker from "@/components/ExercisePicker";
 import ExerciseDetailSheet from "@/components/ExerciseDetailSheet";
+import Stepper from "@/components/Stepper";
 
 export default function ProgramBuilder({ existing }: { existing?: Program }) {
   const router = useRouter();
@@ -175,39 +176,6 @@ export default function ProgramBuilder({ existing }: { existing?: Program }) {
       {detailExercise && (
         <ExerciseDetailSheet exercise={detailExercise} onClose={() => setDetailExercise(null)} />
       )}
-    </div>
-  );
-}
-
-function Stepper({
-  label,
-  value,
-  onChange,
-  min = 0,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-}) {
-  return (
-    <div className="flex-1">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-muted mb-1.5">{label}</p>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onChange(Math.max(min, value - 1))}
-          className="w-8 h-8 rounded-lg bg-surface-2 flex items-center justify-center shrink-0"
-        >
-          <Minus size={14} />
-        </button>
-        <span className="w-6 text-center font-bold text-sm">{value}</span>
-        <button
-          onClick={() => onChange(value + 1)}
-          className="w-8 h-8 rounded-lg bg-surface-2 flex items-center justify-center shrink-0"
-        >
-          <Plus size={14} />
-        </button>
-      </div>
     </div>
   );
 }
