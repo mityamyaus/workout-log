@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ListChecks, Pencil, Plus } from "lucide-react";
+import { ListChecks, Pencil, Plus, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
 
 export default function ProgramsPage() {
@@ -14,29 +14,43 @@ export default function ProgramsPage() {
       <h1 className="text-2xl font-black mb-4">Программы</h1>
 
       {programs.length === 0 ? (
-        <Link
-          href="/programs/new"
-          className="rounded-3xl border-2 border-dashed border-border p-6 flex flex-col items-center justify-center gap-2 text-center"
-        >
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center mb-1"
-            style={{ background: "var(--accent)" }}
+        <>
+          <Link
+            href="/programs/new"
+            className="rounded-3xl border-2 border-dashed border-border p-6 flex flex-col items-center justify-center gap-2 text-center mb-3"
           >
-            <Plus size={22} color="var(--accent-foreground)" />
-          </div>
-          <p className="font-bold">Составить программу</p>
-          <p className="text-xs text-muted max-w-[220px]">
-            Название, цвет, упражнения с подходами и повторениями
-          </p>
-        </Link>
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center mb-1"
+              style={{ background: "var(--accent)" }}
+            >
+              <Plus size={22} color="var(--accent-foreground)" />
+            </div>
+            <p className="font-bold">Составить программу</p>
+            <p className="text-xs text-muted max-w-[220px]">
+              Название, цвет, упражнения с подходами и повторениями
+            </p>
+          </Link>
+          <Link
+            href="/programs/generate"
+            className="rounded-3xl bg-surface border border-border p-4 flex items-center justify-center gap-2 text-center font-bold text-sm"
+          >
+            <Sparkles size={16} color="var(--accent)" /> Подобрать программу автоматически
+          </Link>
+        </>
       ) : (
         <>
           <Link
             href="/programs/new"
-            className="w-full h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-4"
+            className="w-full h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-2"
             style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
           >
             <Plus size={16} /> Новая программа
+          </Link>
+          <Link
+            href="/programs/generate"
+            className="w-full h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-4 bg-surface border border-border"
+          >
+            <Sparkles size={16} color="var(--accent)" /> Подобрать программу автоматически
           </Link>
           <div className="flex flex-col gap-2">
             {programs.map((p) => (
