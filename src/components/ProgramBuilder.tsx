@@ -2,22 +2,33 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronLeft, Minus, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Info, Minus, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { PROGRAM_COLORS, DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
-import { MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/exercises";
+import { EXERCISES, MUSCLE_GROUP_LABELS, type Exercise, type MuscleGroup } from "@/lib/exercises";
 import type { Program, ProgramExercise } from "@/lib/types";
 import ExercisePicker from "@/components/ExercisePicker";
+import ExerciseDetailSheet from "@/components/ExerciseDetailSheet";
 
 export default function ProgramBuilder({ existing }: { existing?: Program }) {
   const router = useRouter();
-  const { saveProgram, deleteProgram } = useStore();
+  const { saveProgram, deleteProgram, customExercises } = useStore();
   const [name, setName] = useState(existing?.name ?? "");
   const [color, setColor] = useState(existing?.color ?? DEFAULT_PROGRAM_COLOR);
   const [exercises, setExercises] = useState<ProgramExercise[]>(existing?.exercises ?? []);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
 
   const excludeIds = useMemo(() => new Set(exercises.map((e) => e.exerciseId)), [exercises]);
+
+  const allKnownExercises = useMemo(() => [...EXERCISES, ...customExercises], [customExercises]);
+  const findExercise = (pe: ProgramExercise): Exercise =>
+    allKnownExercises.find((e) => e.id === pe.exerciseId) ?? {
+      id: pe.exerciseId,
+      name: pe.name,
+      category: pe.category as Exercise["category"],
+      equipment: "BODYWEIGHT",
+    };
 
   const updateExercise = (exerciseId: string, patch: Partial<ProgramExercise>) => {
     setExercises((prev) => prev.map((e) => (e.exerciseId === exerciseId ? { ...e, ...patch } : e)));
@@ -92,12 +103,18 @@ export default function ProgramBuilder({ existing }: { existing?: Program }) {
         {exercises.map((ex) => (
           <div key={ex.exerciseId} className="rounded-3xl bg-surface border border-border p-4">
             <div className="flex items-center justify-between mb-3 gap-2">
-              <div className="min-w-0">
-                <p className="font-bold text-sm truncate">{ex.name}</p>
-                <p className="text-[11px] text-muted font-semibold uppercase tracking-wide">
-                  {MUSCLE_GROUP_LABELS[ex.category as MuscleGroup] ?? ex.category}
-                </p>
-              </div>
+              <button
+                onClick={() => setDetailExercise(findExercise(ex))}
+                className="min-w-0 text-left flex items-center gap-1.5"
+              >
+                <div className="min-w-0">
+                  <p className="font-bold text-sm truncate">{ex.name}</p>
+                  <p className="text-[11px] text-muted font-semibold uppercase tracking-wide">
+                    {MUSCLE_GROUP_LABELS[ex.category as MuscleGroup] ?? ex.category}
+                  </p>
+                </div>
+                <Info size={13} color="var(--muted)" className="shrink-0" />
+              </button>
               <button onClick={() => removeExercise(ex.exerciseId)} className="p-1.5 text-muted shrink-0">
                 <Trash2 size={16} />
               </button>
@@ -153,6 +170,10 @@ export default function ProgramBuilder({ existing }: { existing?: Program }) {
           }
           onClose={() => setPickerOpen(false)}
         />
+      )}
+
+      {detailExercise && (
+        <ExerciseDetailSheet exercise={detailExercise} onClose={() => setDetailExercise(null)} />
       )}
     </div>
   );
