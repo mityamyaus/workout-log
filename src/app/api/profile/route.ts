@@ -17,6 +17,7 @@ export async function GET() {
     age: user.age,
     weight: user.weight,
     weightLog: user.weightLog,
+    shareWeights: user.shareWeights,
   });
 }
 
@@ -30,6 +31,7 @@ export async function PATCH(req: NextRequest) {
   const data: Prisma.UserUpdateInput = {};
   if (typeof body.name === "string") data.name = body.name;
   if (body.age === null || typeof body.age === "number") data.age = body.age;
+  if (typeof body.shareWeights === "boolean") data.shareWeights = body.shareWeights;
 
   if (typeof body.weight === "number") {
     const date = typeof body.date === "string" ? body.date : todayStr();
@@ -48,5 +50,6 @@ export async function PATCH(req: NextRequest) {
     age: updated.age,
     weight: updated.weight,
     weightLog: updated.weightLog,
+    shareWeights: updated.shareWeights,
   });
 }

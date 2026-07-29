@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronLeft, LogOut, User, Bell, BellOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, User, Bell, BellOff, Users, Trophy, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush, isPushSupported } from "@/lib/push";
 
@@ -127,6 +128,54 @@ export default function ProfilePage() {
       >
         {saving ? "Сохраняем…" : saved ? "Сохранено ✓" : "Сохранить"}
       </button>
+
+      <div className="flex flex-col gap-2 mt-5">
+        <Link
+          href="/friends"
+          className="w-full rounded-3xl bg-surface border border-border p-4 flex items-center gap-3 text-left"
+        >
+          <div className="w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center shrink-0">
+            <Users size={16} color="var(--muted)" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm">Друзья</p>
+          </div>
+          <ChevronRight size={16} color="var(--muted)" />
+        </Link>
+        <Link
+          href="/achievements"
+          className="w-full rounded-3xl bg-surface border border-border p-4 flex items-center gap-3 text-left"
+        >
+          <div className="w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center shrink-0">
+            <Trophy size={16} color="var(--muted)" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm">Достижения</p>
+          </div>
+          <ChevronRight size={16} color="var(--muted)" />
+        </Link>
+        <button
+          onClick={() => updateProfile({ shareWeights: !user.shareWeights })}
+          className="w-full rounded-3xl bg-surface border border-border p-4 flex items-center gap-3 text-left"
+        >
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: user.shareWeights ? "var(--accent)" : "var(--surface-2)" }}
+          >
+            {user.shareWeights ? (
+              <Eye size={16} color="var(--accent-foreground)" />
+            ) : (
+              <EyeOff size={16} color="var(--muted)" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm">Показывать вес друзьям</p>
+            <p className="text-xs text-muted mt-0.5">
+              {user.shareWeights ? "Друзья видят рабочие веса в ленте" : "Друзья видят только время и объём"}
+            </p>
+          </div>
+        </button>
+      </div>
 
       {pushState !== "unsupported" && (
         <button

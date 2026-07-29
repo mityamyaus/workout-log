@@ -12,6 +12,7 @@ export interface AuthUser {
   age: number | null;
   weight: number | null;
   weightLog: { date: string; weight: number }[];
+  shareWeights: boolean;
 }
 
 interface ProfileFields {
@@ -19,6 +20,7 @@ interface ProfileFields {
   age: number | null;
   weight: number | null;
   weightLog: { date: string; weight: number }[];
+  shareWeights: boolean;
 }
 
 interface AuthStore {
@@ -28,7 +30,7 @@ interface AuthStore {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
-  updateProfile: (patch: { name?: string; age?: number | null }) => Promise<void>;
+  updateProfile: (patch: { name?: string; age?: number | null; shareWeights?: boolean }) => Promise<void>;
   logWeight: (weight: number) => Promise<void>;
 }
 
@@ -97,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     cacheUser(null);
   }, []);
 
-  const updateProfile = useCallback(async (patch: { name?: string; age?: number | null }) => {
+  const updateProfile = useCallback(async (patch: { name?: string; age?: number | null; shareWeights?: boolean }) => {
     setUser((prev) => {
       const next = prev ? { ...prev, ...patch } : prev;
       cacheUser(next);

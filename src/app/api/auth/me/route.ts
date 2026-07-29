@@ -12,5 +12,6 @@ export async function GET() {
     age: user.age,
     weight: user.weight,
     weightLog: user.weightLog,
+    shareWeights: user.shareWeights,
   });
 }

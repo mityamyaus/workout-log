@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sun, Moon, ArrowRight, ChevronRight, User, CalendarPlus, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Sun, Moon, ArrowRight, ChevronRight, User, CalendarPlus, CheckCircle2, Users, Trophy } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
 import { DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
 import { getTodaysPhrase } from "@/lib/motivationalPhrases";
+import { findRecentPR } from "@/lib/achievements";
 import {
   computeStreak,
   currentWeekDates,
@@ -32,6 +35,16 @@ export default function TodayPage() {
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
+  const [incomingCount, setIncomingCount] = useState(0);
+
+  useEffect(() => {
+    api
+      .get<{ incoming: unknown[] }>("/api/friends")
+      .then((data) => setIncomingCount(data.incoming.length))
+      .catch(() => {});
+  }, []);
+
+  const recentPR = useMemo(() => findRecentPR(sessions), [sessions]);
 
   if (!ready || !user) return null;
 
@@ -82,6 +95,19 @@ export default function TodayPage() {
             {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
           </button>
           <Link
+            href="/friends"
+            className="relative w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center"
+            aria-label="Друзья"
+          >
+            <Users size={18} />
+            {incomingCount > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
+                style={{ background: "#ff6fae", borderColor: "var(--background)" }}
+              />
+            )}
+          </Link>
+          <Link
             href="/profile"
             className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center overflow-hidden"
             aria-label="Профиль"
@@ -94,6 +120,24 @@ export default function TodayPage() {
           </Link>
         </div>
       </div>
+
+      {recentPR && (
+        <Link
+          href="/achievements"
+          className="flex items-center gap-2.5 rounded-3xl bg-surface border border-border p-3.5 mb-5"
+        >
+          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "#3a3320" }}>
+            <Trophy size={16} color="#ffd93d" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold">Новый личный рекорд</p>
+            <p className="text-[11px] text-muted truncate">
+              {recentPR.exerciseName} — {recentPR.weight} кг × {recentPR.reps}
+            </p>
+          </div>
+          <ChevronRight size={16} color="var(--muted)" />
+        </Link>
+      )}
 
       <div className="grid grid-cols-3 gap-3 mb-5">
         <StatCard label="Серия" value={streak} unit="дней" highlight />
