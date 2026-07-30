@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { DraftExercise, PlannedWorkout, Program, ProgramExercise, WorkoutSession } from "./types";
+import type { DraftExercise, Goal, PlannedWorkout, Program, ProgramExercise, WorkoutSession } from "./types";
 import { DEFAULT_PROGRAM_COLOR } from "./colors";
 import type { Exercise, MuscleGroup, Equipment } from "./exercises";
 import { api, NetworkError } from "./api";
@@ -25,6 +25,7 @@ interface Cache {
   programs: Program[];
   plans: PlannedWorkout[];
   customExercises: Exercise[];
+  goals: Goal[];
 }
 
 interface DraftSession {
@@ -84,6 +85,19 @@ interface Store {
   ) => Promise<void>;
   removePlan: (id: string) => Promise<void>;
   addCustomExercise: (name: string, category: MuscleGroup, equipment: Equipment) => Promise<Exercise>;
+  goals: Goal[];
+  addGoal: (goal: {
+    exerciseId: string;
+    exerciseName: string;
+    targetType: Goal["targetType"];
+    targetValue: number;
+    targetReps: number | null;
+    startValue: number;
+    startDate: string;
+    deadline: string | null;
+  }) => Promise<void>;
+  archiveGoal: (id: string, archived: boolean) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -98,11 +112,12 @@ function computeRemindAt(date: string, time: string | null, reminderMinutesBefor
 }
 
 function loadCache(): Cache {
+  const empty: Cache = { sessions: [], programs: [], plans: [], customExercises: [], goals: [] };
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { ...empty, ...JSON.parse(raw) };
   } catch {}
-  return { sessions: [], programs: [], plans: [], customExercises: [] };
+  return empty;
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -111,6 +126,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [plans, setPlans] = useState<PlannedWorkout[]>([]);
   const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [draft, setDraft] = useState<DraftSession | null>(null);
   const [ready, setReady] = useState(false);
   const [online, setOnline] = useState(true);
@@ -119,8 +135,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Keep latest state in refs so the queue flush (which runs outside React's
   // render cycle) always mutates from current values, not a stale closure.
-  const stateRef = useRef({ sessions, programs, plans, customExercises });
-  stateRef.current = { sessions, programs, plans, customExercises };
+  const stateRef = useRef({ sessions, programs, plans, customExercises, goals });
+  stateRef.current = { sessions, programs, plans, customExercises, goals };
 
   useEffect(() => {
     try {
@@ -175,6 +191,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
       case "updateProfile":
         return api.patch("/api/profile", payload);
+      case "addGoal": {
+        const { tempId: _tempId, ...body } = payload;
+        return api.post("/api/goals", body);
+      }
+      case "archiveGoal": {
+        const { id, archived } = payload;
+        return api.patch(`/api/goals/${id}`, { archived });
+      }
+      case "deleteGoal":
+        return api.delete(`/api/goals/${payload.id}`);
       default:
         return undefined;
     }
@@ -221,7 +247,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runOp, updatePendingCount]);
 
-  const reconcileTempId = useCallback((kind: QueueOp["kind"], tempId: string, result: WorkoutSession | Program | PlannedWorkout | Exercise) => {
+  const reconcileTempId = useCallback((kind: QueueOp["kind"], tempId: string, result: WorkoutSession | Program | PlannedWorkout | Exercise | Goal) => {
     if (kind === "createWorkout") {
       setSessions((prev) => {
         const next = prev.map((s) => (s.id === tempId ? (result as WorkoutSession) : s));
@@ -249,6 +275,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setCustomExercises((prev) => {
         const next = prev.map((e) => (e.id === tempId ? (result as Exercise) : e));
         persistCache({ customExercises: next });
+        return next;
+      });
+    } else if (kind === "addGoal") {
+      setGoals((prev) => {
+        const next = prev.map((g) => (g.id === tempId ? (result as Goal) : g));
+        persistCache({ goals: next });
         return next;
       });
     }
@@ -283,6 +315,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setPrograms([]);
       setPlans([]);
       setCustomExercises([]);
+      setGoals([]);
       setReady(true);
       return;
     }
@@ -291,13 +324,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setPrograms(cache.programs);
     setPlans(cache.plans);
     setCustomExercises(cache.customExercises);
+    setGoals(cache.goals);
     setReady(true);
 
     api
-      .get<{ sessions: WorkoutSession[]; programs: Program[]; plans: PlannedWorkout[]; customExercises: Exercise[] }>(
-        "/api/bootstrap"
-      )
-      .then(({ sessions: s, programs: p, plans: pl, customExercises: ce }) => {
+      .get<{
+        sessions: WorkoutSession[];
+        programs: Program[];
+        plans: PlannedWorkout[];
+        customExercises: Exercise[];
+        goals: Goal[];
+      }>("/api/bootstrap")
+      .then(({ sessions: s, programs: p, plans: pl, customExercises: ce, goals: g }) => {
         setOnline(true);
         const pendingIds = new Set(loadQueue().map((op) => op.payload.tempId).filter(Boolean));
         const keepPending = <T extends { id: string }>(local: T[], server: T[]) => [
@@ -308,11 +346,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const mergedPrograms = keepPending(stateRef.current.programs, p);
         const mergedPlans = keepPending(stateRef.current.plans, pl);
         const mergedCustom = keepPending(stateRef.current.customExercises, ce);
+        const mergedGoals = keepPending(stateRef.current.goals, g);
         setSessions(mergedSessions);
         setPrograms(mergedPrograms);
         setPlans(mergedPlans);
         setCustomExercises(mergedCustom);
-        persistCache({ sessions: mergedSessions, programs: mergedPrograms, plans: mergedPlans, customExercises: mergedCustom });
+        setGoals(mergedGoals);
+        persistCache({
+          sessions: mergedSessions,
+          programs: mergedPrograms,
+          plans: mergedPlans,
+          customExercises: mergedCustom,
+          goals: mergedGoals,
+        });
         flushQueue();
       })
       .catch((err) => {
@@ -742,6 +788,81 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [persistCache, enqueue]
   );
 
+  const addGoal = useCallback(
+    async (goal: {
+      exerciseId: string;
+      exerciseName: string;
+      targetType: Goal["targetType"];
+      targetValue: number;
+      targetReps: number | null;
+      startValue: number;
+      startDate: string;
+      deadline: string | null;
+    }) => {
+      const tempId = newTempId("g");
+      const optimistic: Goal = { id: tempId, archived: false, createdAt: Date.now(), ...goal };
+      setGoals((prev) => {
+        const next = [optimistic, ...prev];
+        persistCache({ goals: next });
+        return next;
+      });
+      try {
+        const saved = await api.post<Goal>("/api/goals", goal);
+        setGoals((prev) => {
+          const next = prev.map((g) => (g.id === tempId ? saved : g));
+          persistCache({ goals: next });
+          return next;
+        });
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("addGoal", { tempId, ...goal });
+      }
+    },
+    [persistCache, enqueue]
+  );
+
+  const archiveGoal = useCallback(
+    async (id: string, archived: boolean) => {
+      setGoals((prev) => {
+        const next = prev.map((g) => (g.id === id ? { ...g, archived } : g));
+        persistCache({ goals: next });
+        return next;
+      });
+      if (isTempId(id)) return;
+      try {
+        await api.patch(`/api/goals/${id}`, { archived });
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("archiveGoal", { id, archived });
+      }
+    },
+    [persistCache, enqueue]
+  );
+
+  const deleteGoal = useCallback(
+    async (id: string) => {
+      setGoals((prev) => {
+        const next = prev.filter((g) => g.id !== id);
+        persistCache({ goals: next });
+        return next;
+      });
+      if (isTempId(id)) {
+        cancelPendingCreate(id, "addGoal");
+        return;
+      }
+      try {
+        await api.delete(`/api/goals/${id}`);
+      } catch (err) {
+        if (!(err instanceof NetworkError)) throw err;
+        setOnline(false);
+        enqueue("deleteGoal", { id });
+      }
+    },
+    [persistCache, enqueue, cancelPendingCreate]
+  );
+
   const value = useMemo<Store>(
     () => ({
       sessions,
@@ -768,6 +889,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updatePlan,
       removePlan,
       addCustomExercise,
+      goals,
+      addGoal,
+      archiveGoal,
+      deleteGoal,
     }),
     [
       sessions,
@@ -794,6 +919,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updatePlan,
       removePlan,
       addCustomExercise,
+      goals,
+      addGoal,
+      archiveGoal,
+      deleteGoal,
     ]
   );
 

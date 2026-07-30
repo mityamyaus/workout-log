@@ -60,3 +60,19 @@ export interface WeightEntry {
   date: string; // YYYY-MM-DD
   weight: number;
 }
+
+export type GoalTargetType = "WEIGHT" | "VOLUME";
+
+export interface Goal {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  targetType: GoalTargetType;
+  targetValue: number;
+  targetReps: number | null;
+  startValue: number;
+  startDate: string; // YYYY-MM-DD
+  deadline: string | null; // YYYY-MM-DD
+  archived: boolean;
+  createdAt: number;
+}

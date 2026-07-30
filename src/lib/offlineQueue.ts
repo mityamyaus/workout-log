@@ -7,7 +7,10 @@ export type QueueOpKind =
   | "updatePlan"
   | "removePlan"
   | "addCustomExercise"
-  | "updateProfile";
+  | "updateProfile"
+  | "addGoal"
+  | "archiveGoal"
+  | "deleteGoal";
 
 export interface QueueOp {
   id: string;

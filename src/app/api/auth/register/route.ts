@@ -34,6 +34,5 @@ export async function POST(req: NextRequest) {
     age: user.age,
     weight: user.weight,
     weightLog: user.weightLog,
-    shareWeights: user.shareWeights,
   });
 }

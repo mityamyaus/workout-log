@@ -16,6 +16,7 @@ export async function GET() {
   });
   const plans = await prisma.plannedWorkout.findMany({ where: { userId: user.id } });
   const customExercises = await prisma.customExercise.findMany({ where: { userId: user.id } });
+  const goals = await prisma.goal.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } });
 
   return NextResponse.json({
     sessions: sessions.map((row) => ({
@@ -50,6 +51,19 @@ export async function GET() {
       name: row.name,
       category: row.category,
       equipment: row.equipment,
+    })),
+    goals: goals.map((row) => ({
+      id: row.id,
+      exerciseId: row.exerciseId,
+      exerciseName: row.exerciseName,
+      targetType: row.targetType,
+      targetValue: row.targetValue,
+      targetReps: row.targetReps,
+      startValue: row.startValue,
+      startDate: row.startDate,
+      deadline: row.deadline,
+      archived: row.archived,
+      createdAt: row.createdAt.getTime(),
     })),
   });
 }

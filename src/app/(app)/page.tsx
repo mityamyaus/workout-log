@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { Sun, Moon, ArrowRight, ChevronRight, User, CalendarPlus, CheckCircle2, Users, Trophy } from "lucide-react";
+import { useMemo } from "react";
+import { Sun, Moon, ArrowRight, ChevronRight, User, CalendarPlus, CheckCircle2, Target, Trophy } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
-import { api } from "@/lib/api";
 import { DEFAULT_PROGRAM_COLOR } from "@/lib/colors";
 import { getTodaysPhrase } from "@/lib/motivationalPhrases";
 import { findRecentPR } from "@/lib/achievements";
+import { computeGoalProgress } from "@/lib/goals";
 import {
   computeStreak,
   currentWeekDates,
@@ -31,20 +31,20 @@ function formatPlanDate(dateStr: string): string {
 }
 
 export default function TodayPage() {
-  const { sessions, plans, draft, ready, startDraft, startProgram, removePlan } = useStore();
+  const { sessions, plans, goals, draft, ready, startDraft, startProgram, removePlan } = useStore();
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
-  const [incomingCount, setIncomingCount] = useState(0);
-
-  useEffect(() => {
-    api
-      .get<{ incoming: unknown[] }>("/api/friends")
-      .then((data) => setIncomingCount(data.incoming.length))
-      .catch(() => {});
-  }, []);
 
   const recentPR = useMemo(() => findRecentPR(sessions), [sessions]);
+  const topGoal = useMemo(() => {
+    const active = goals
+      .filter((g) => !g.archived)
+      .map((g) => computeGoalProgress(g, sessions))
+      .filter((p) => p.status === "ACTIVE")
+      .sort((a, b) => b.progressPct - a.progressPct);
+    return active[0] ?? null;
+  }, [goals, sessions]);
 
   if (!ready || !user) return null;
 
@@ -95,19 +95,6 @@ export default function TodayPage() {
             {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
           </button>
           <Link
-            href="/friends"
-            className="relative w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center"
-            aria-label="Друзья"
-          >
-            <Users size={18} />
-            {incomingCount > 0 && (
-              <span
-                className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
-                style={{ background: "#ff6fae", borderColor: "var(--background)" }}
-              />
-            )}
-          </Link>
-          <Link
             href="/profile"
             className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center overflow-hidden"
             aria-label="Профиль"
@@ -136,6 +123,22 @@ export default function TodayPage() {
             </p>
           </div>
           <ChevronRight size={16} color="var(--muted)" />
+        </Link>
+      )}
+
+      {topGoal && (
+        <Link href="/goals" className="block rounded-3xl bg-surface border border-border p-4 mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Target size={14} color="var(--accent)" />
+            <span className="text-xs font-bold flex-1 truncate">{topGoal.goal.exerciseName}</span>
+            <span className="text-[11px] text-muted font-semibold">{Math.round(topGoal.progressPct)}%</span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-surface-2 overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${topGoal.progressPct}%`, background: "var(--accent)" }}
+            />
+          </div>
         </Link>
       )}
 

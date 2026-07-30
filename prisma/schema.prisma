@@ -17,49 +17,35 @@ model User {
   age          Int?
   weight       Float?
   weightLog    Json     @default("[]")
-  shareWeights Boolean  @default(false)
   createdAt    DateTime @default(now())
 
-  authSessions            AuthSession[]
-  workoutSessions         WorkoutSession[]
-  programs                Program[]
-  plannedWorkouts         PlannedWorkout[]
-  customExercises         CustomExercise[]
-  pushSubscriptions       PushSubscription[]
-  sentFriendRequests      FriendRequest[]     @relation("FriendRequestsSent")
-  receivedFriendRequests  FriendRequest[]     @relation("FriendRequestsReceived")
-  reactions               Reaction[]
+  authSessions      AuthSession[]
+  workoutSessions   WorkoutSession[]
+  programs          Program[]
+  plannedWorkouts   PlannedWorkout[]
+  customExercises   CustomExercise[]
+  pushSubscriptions PushSubscription[]
+  goals             Goal[]
 
   @@schema("workout_app")
 }
 
-model FriendRequest {
-  id          String    @id @default(cuid())
-  fromUserId  String
-  fromUser    User      @relation("FriendRequestsSent", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUserId    String
-  toUser      User      @relation("FriendRequestsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
-  status      String    @default("PENDING")
-  createdAt   DateTime  @default(now())
-  respondedAt DateTime?
+model Goal {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId   String
+  exerciseName String
+  targetType   String
+  targetValue  Float
+  targetReps   Int?
+  startValue   Float
+  startDate    String
+  deadline     String?
+  archived     Boolean  @default(false)
+  createdAt    DateTime @default(now())
 
-  @@unique([fromUserId, toUserId])
-  @@index([toUserId, status])
-  @@index([fromUserId, status])
-  @@schema("workout_app")
-}
-
-model Reaction {
-  id        String         @id @default(cuid())
-  sessionId String
-  session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String         @default("LIKE")
-  createdAt DateTime       @default(now())
-
-  @@unique([sessionId, userId])
-  @@index([sessionId])
+  @@index([userId])
   @@schema("workout_app")
 }
 
@@ -86,7 +72,6 @@ model WorkoutSession {
   color      String
   exercises  Json
   createdAt  DateTime @default(now())
-  reactions  Reaction[]
 
   @@index([userId, date])
   @@schema("workout_app")
