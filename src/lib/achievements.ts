@@ -143,12 +143,12 @@ export function findRecentPR(sessions: WorkoutSession[]): RecentPR | null {
   }
 
   for (const ex of latest.exercises) {
-    for (const set of ex.sets) {
-      if (!set.completed || set.weight <= 0) continue;
-      const prev = priorMax[ex.name] ?? 0;
-      if (set.weight > prev) {
-        return { exerciseName: ex.name, weight: set.weight, reps: set.reps, date: latest.date };
-      }
+    const completedSets = ex.sets.filter((s) => s.completed && s.weight > 0);
+    if (completedSets.length === 0) continue;
+    const best = completedSets.reduce((a, b) => (b.weight > a.weight ? b : a));
+    const prev = priorMax[ex.name] ?? 0;
+    if (best.weight > prev) {
+      return { exerciseName: ex.name, weight: best.weight, reps: best.reps, date: latest.date };
     }
   }
   return null;

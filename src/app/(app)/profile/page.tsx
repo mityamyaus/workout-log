@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const [pushState, setPushState] = useState<"unsupported" | "denied" | "subscribed" | "unsubscribed" | "loading">(
     "loading"
   );
+  const [pushError, setPushError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready || !user) return;
@@ -36,12 +37,18 @@ export default function ProfilePage() {
   }, []);
 
   const handleToggleNotifications = async () => {
-    if (pushState === "subscribed") {
-      await unsubscribeFromPush();
-      setPushState("unsubscribed");
-    } else {
-      const ok = await subscribeToPush();
-      setPushState(ok ? "subscribed" : Notification.permission === "denied" ? "denied" : "unsubscribed");
+    setPushError(null);
+    try {
+      if (pushState === "subscribed") {
+        await unsubscribeFromPush();
+        setPushState("unsubscribed");
+      } else {
+        const ok = await subscribeToPush();
+        setPushState(ok ? "subscribed" : Notification.permission === "denied" ? "denied" : "unsubscribed");
+      }
+    } catch (err) {
+      setPushError(err instanceof Error ? err.message : "Не получилось включить уведомления");
+      setPushState((prev) => (prev === "loading" ? "unsubscribed" : prev));
     }
   };
 
@@ -183,6 +190,7 @@ export default function ProfilePage() {
           </div>
         </button>
       )}
+      {pushError && <p className="text-xs text-danger mt-2 px-1">{pushError}</p>}
 
       {user.weightLog.length > 0 && (
         <div className="mt-5">

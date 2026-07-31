@@ -22,7 +22,9 @@ export async function getPushSubscriptionState(): Promise<"unsupported" | "denie
 export async function subscribeToPush(): Promise<boolean> {
   if (!isPushSupported()) return false;
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  if (!publicKey) return false;
+  if (!publicKey) {
+    throw new Error("Push-уведомления не настроены на сервере (нет VAPID-ключа)");
+  }
 
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return false;
