@@ -2,21 +2,44 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Check } from "lucide-react";
+import { Plus, Trash2, Check, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useStore } from "@/lib/store";
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/exercises";
 import ExercisePicker from "@/components/ExercisePicker";
 
 export default function WorkoutPage() {
   const router = useRouter();
-  const { draft, ready, discardDraft, finishDraft } = useStore();
+  const { draft, ready, discardDraft, finishDraft, reorderDraftExercises } = useStore();
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } })
+  );
 
   useEffect(() => {
     if (ready && !draft) router.replace("/programs");
   }, [ready, draft, router]);
 
   if (!ready || !draft) return null;
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      reorderDraftExercises(String(active.id), String(over.id));
+    }
+  };
 
   return (
     <div className="max-w-md mx-auto px-4 pt-[calc(20px+env(safe-area-inset-top))] pb-6">
@@ -35,11 +58,15 @@ export default function WorkoutPage() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-4 mb-4">
-        {draft.exercises.map((ex) => (
-          <ExerciseCard key={ex.exerciseId} exerciseId={ex.exerciseId} name={ex.name} category={ex.category} sets={ex.sets} />
-        ))}
-      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={draft.exercises.map((e) => e.exerciseId)} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-col gap-4 mb-4">
+            {draft.exercises.map((ex) => (
+              <ExerciseCard key={ex.exerciseId} exerciseId={ex.exerciseId} name={ex.name} category={ex.category} sets={ex.sets} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       <button
         onClick={() => setPickerOpen(true)}
@@ -88,15 +115,34 @@ function ExerciseCard({
   sets: { weight: number; reps: number; completed: boolean }[];
 }) {
   const { addSet, updateSet, removeSet, removeExerciseFromDraft } = useStore();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: exerciseId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.9 : 1,
+    zIndex: isDragging ? 10 : undefined,
+    borderColor: isDragging ? "var(--accent)" : "var(--border)",
+  };
 
   return (
-    <div className="rounded-3xl bg-surface border border-border p-4">
+    <div ref={setNodeRef} style={style} className="rounded-3xl bg-surface border p-4">
       <div className="flex items-center justify-between mb-3 gap-2">
-        <div className="min-w-0">
-          <p className="font-bold truncate">{name}</p>
-          <p className="text-[11px] text-muted font-semibold uppercase tracking-wide">
-            {MUSCLE_GROUP_LABELS[category as MuscleGroup] ?? category}
-          </p>
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            {...attributes}
+            {...listeners}
+            className="p-1 -ml-1 text-muted shrink-0 touch-none cursor-grab active:cursor-grabbing"
+            aria-label="Перетащить для изменения порядка"
+          >
+            <GripVertical size={18} />
+          </button>
+          <div className="min-w-0">
+            <p className="font-bold truncate">{name}</p>
+            <p className="text-[11px] text-muted font-semibold uppercase tracking-wide">
+              {MUSCLE_GROUP_LABELS[category as MuscleGroup] ?? category}
+            </p>
+          </div>
         </div>
         <button onClick={() => removeExerciseFromDraft(exerciseId)} className="p-1.5 text-muted shrink-0">
           <Trash2 size={16} />

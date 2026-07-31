@@ -57,6 +57,7 @@ interface Store {
   discardDraft: () => void;
   addExerciseToDraft: (exerciseId: string, name: string, category: string) => void;
   removeExerciseFromDraft: (exerciseId: string) => void;
+  reorderDraftExercises: (fromExerciseId: string, toExerciseId: string) => void;
   addSet: (exerciseId: string) => void;
   updateSet: (exerciseId: string, index: number, patch: Partial<{ weight: number; reps: number; completed: boolean }>) => void;
   removeSet: (exerciseId: string, index: number) => void;
@@ -435,6 +436,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setDraft((prev) =>
       prev ? { ...prev, exercises: prev.exercises.filter((e) => e.exerciseId !== exerciseId) } : prev
     );
+  }, []);
+
+  const reorderDraftExercises = useCallback((fromExerciseId: string, toExerciseId: string) => {
+    setDraft((prev) => {
+      if (!prev || fromExerciseId === toExerciseId) return prev;
+      const exercises = [...prev.exercises];
+      const fromIndex = exercises.findIndex((e) => e.exerciseId === fromExerciseId);
+      const toIndex = exercises.findIndex((e) => e.exerciseId === toExerciseId);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+      const [moved] = exercises.splice(fromIndex, 1);
+      exercises.splice(toIndex, 0, moved);
+      return { ...prev, exercises };
+    });
   }, []);
 
   const addSet = useCallback((exerciseId: string) => {
@@ -878,6 +892,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       discardDraft,
       addExerciseToDraft,
       removeExerciseFromDraft,
+      reorderDraftExercises,
       addSet,
       updateSet,
       removeSet,
@@ -908,6 +923,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       discardDraft,
       addExerciseToDraft,
       removeExerciseFromDraft,
+      reorderDraftExercises,
       addSet,
       updateSet,
       removeSet,
